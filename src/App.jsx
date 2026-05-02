@@ -4,18 +4,21 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./layout/Layout";
 import Dashboard from "./pages/Dashboard";
 import UserManagement from "./pages/UserManagement";
-import Trainers from "./pages/Trainers";
+
 import Attendance from "./pages/Attendance";
 
-import Users from "./pages/Users";
-import Roles from "./pages/Roles";
+
 import Reports from "./pages/Reports";
-import Login from "./config/Login";
+import Login from "./auth/Login";
 import StudentManagement from "./pages/studentmaster/StudentManagement";
 import DepartmentManagement from "./pages/departmentmaster/DepartmentManagement";
-import BatchManagement from "./pages/BatchManagement";
+import BatchManagement from "./pages/batchmaster/BatchManagement";
 import CollegeManagement from "./pages/CollegeMaster/CollegeManagement";
 import DomainManagement from "./pages/domainmaster/DomainManagement";
+import Trainers from "./pages/trainermaster/Trainers";
+import HolidayManagement from "./pages/holidaymaster/HolidayManagement";
+import Roles from "./pages/roles/Roles";
+import Users from "./pages/usermaster/Users";
 
 
 // Protected Route Component
@@ -51,6 +54,7 @@ const App = () => {
           <Route path="user-management" element={<UserManagement />} />
           <Route path="dept-management" element={<DepartmentManagement />} />
            <Route path="domain-management" element={<DomainManagement />} />
+           <Route path="holiday-management" element={<HolidayManagement />} />
           <Route path="batch-management" element={<BatchManagement />} />
           <Route path="student-management" element={<StudentManagement />} />
           <Route path="trainers" element={<Trainers />} />

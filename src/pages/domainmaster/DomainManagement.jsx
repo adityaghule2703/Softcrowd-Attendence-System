@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -36,9 +36,10 @@ import {
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
-  Language as LanguageIcon,
-  Public as PublicIcon
+  Language as LanguageIcon
 } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Import modal components
 import AddDomain from './AddDomain';
@@ -53,10 +54,11 @@ const COLORS = {
   primaryDark: '#0A0F1E',
   accent: '#00AEED',
   text: {
-    primary: '#424347',
-    secondary: '#6B7280',
+    primary: '#1E293B',
+    secondary: '#64748B',
     tertiary: '#94A3B8',
-    light: '#FFFFFF'
+    light: '#FFFFFF',
+    lightMuted: 'rgba(255, 255, 255, 0.9)'
   },
   background: {
     white: '#FFFFFF',
@@ -170,18 +172,22 @@ const ActionMenu = ({ domain, onView, onEdit, onDelete }) => {
 
 const DomainManagement = () => {
   const [domains, setDomains] = useState([]);
-  const [filteredDomains, setFilteredDomains] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selected, setSelected] = useState([]);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success'
   });
+  
+  // Server-side pagination states
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
 
   // Modal states
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -190,70 +196,130 @@ const DomainManagement = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [selectedDomain, setSelectedDomain] = useState(null);
 
-  // Load domains from localStorage on component mount
-  useEffect(() => {
-    loadDomainsFromStorage();
-  }, []);
-
-  const loadDomainsFromStorage = () => {
+  // Load domains from API with pagination and search
+  const loadDomainsFromAPI = useCallback(async () => {
     setLoading(true);
     try {
-      const storedDomains = localStorage.getItem('domains');
-      if (storedDomains) {
-        const parsedDomains = JSON.parse(storedDomains);
-        setDomains(parsedDomains);
-        setFilteredDomains(parsedDomains);
+      const token = localStorage.getItem('token');
+      const params = {
+        page: currentPage,
+        per_page: rowsPerPage,
+        search: searchTerm
+      };
+      
+      const response = await axios.get(`${BASE_URL}/domains`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: params
+      });
+
+      if (response.data && response.data.data) {
+        // Transform API response to match component structure
+        const transformedDomains = response.data.data.map(domain => ({
+          id: domain.id,
+          domainName: domain.name,
+          description: domain.description,
+          createdAt: domain.created_at,
+          updatedAt: domain.updated_at
+        }));
+        
+        setDomains(transformedDomains);
+        setTotalCount(response.data.total || 0);
+        setLastPage(response.data.last_page || 1);
       } else {
         setDomains([]);
-        setFilteredDomains([]);
-        localStorage.setItem('domains', JSON.stringify([]));
+        setTotalCount(0);
+        setLastPage(1);
       }
     } catch (error) {
       console.error('Error loading domains:', error);
-      showNotification('Failed to load domains', 'error');
+      showNotification(error.response?.data?.message || 'Failed to load domains', 'error');
+      setDomains([]);
+      setTotalCount(0);
+      setLastPage(1);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, rowsPerPage, searchTerm]);
 
-  const saveDomainsToStorage = (updatedDomains) => {
-    localStorage.setItem('domains', JSON.stringify(updatedDomains));
-  };
-
-  // Handle search
-  const handleSearch = () => {
-    if (!searchTerm) {
-      setFilteredDomains(domains);
-      return;
-    }
-    
-    const value = searchTerm.toLowerCase();
-    const filtered = domains.filter(domain =>
-      domain.domainName?.toLowerCase().includes(value)
-    );
-    
-    setFilteredDomains(filtered);
-  };
+  // Load domains when dependencies change
+  useEffect(() => {
+    loadDomainsFromAPI();
+  }, [loadDomainsFromAPI]);
 
   // Debounce search
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(searchInput);
-      setPage(0);
+      setCurrentPage(1); // Reset to first page when searching
+      setPage(0); // Reset pagination index
     }, 500);
 
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Apply search when searchTerm or domains change
-  React.useEffect(() => {
-    handleSearch();
-  }, [searchTerm, domains]);
+  // Handle add domain
+  const handleAddDomain = (newDomain) => {
+    // Transform the API response to match component structure
+    const transformedDomain = {
+      id: newDomain.id,
+      domainName: newDomain.name,
+      description: newDomain.description,
+      createdAt: newDomain.created_at,
+      updatedAt: newDomain.updated_at
+    };
+    
+    // If on first page, add to current list
+    if (currentPage === 1 && domains.length < rowsPerPage) {
+      setDomains(prev => [transformedDomain, ...prev]);
+    }
+    
+    // Refresh to get updated total count
+    loadDomainsFromAPI();
+    showNotification('Domain added successfully!', 'success');
+  };
 
-  // Handle select all
+  // Handle edit domain
+  const handleEditDomain = (updatedDomain) => {
+    // Transform the API response to match component structure
+    const transformedDomain = {
+      id: updatedDomain.id,
+      domainName: updatedDomain.name,
+      description: updatedDomain.description,
+      createdAt: updatedDomain.created_at,
+      updatedAt: updatedDomain.updated_at
+    };
+    
+    // Update local state
+    setDomains(prev => prev.map(domain => 
+      domain.id === transformedDomain.id ? transformedDomain : domain
+    ));
+    
+    showNotification('Domain updated successfully!', 'success');
+  };
+
+  // Handle delete domain
+  const handleDeleteDomain = (domainId) => {
+    // Remove from local state
+    setDomains(prev => prev.filter(domain => domain.id !== domainId));
+    setSelected(prev => prev.filter(id => id !== domainId));
+    
+    // Refresh to update pagination and total count
+    loadDomainsFromAPI();
+    showNotification('Domain deleted successfully!', 'success');
+  };
+
+  // Handle refresh
+  const handleRefresh = () => {
+    loadDomainsFromAPI();
+    showNotification('Data refreshed successfully', 'success');
+  };
+
+  // Handle select all on current page
   const handleSelectAll = (event) => {
     if (event.target.checked) {
-      setSelected(filteredDomains.map(domain => domain.id));
+      setSelected(domains.map(domain => domain.id));
     } else {
       setSelected([]);
     }
@@ -273,67 +339,57 @@ const DomainManagement = () => {
     setSelected(newSelected);
   };
 
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selected.length === 0) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Delete each selected domain
+      const deletePromises = selected.map(id => 
+        axios.delete(`${BASE_URL}/domains/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // Clear selection
+      setSelected([]);
+      
+      // Check if current page becomes empty and not first page
+      if (domains.length === selected.length && currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+        setPage(prev => prev - 1);
+      } else {
+        // Refresh current page
+        loadDomainsFromAPI();
+      }
+      
+      showNotification(`${selected.length} domains deleted successfully`, 'success');
+    } catch (error) {
+      console.error('Error bulk deleting domains:', error);
+      showNotification('Failed to delete some domains', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle page change
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
-    setSelected([]);
+    setCurrentPage(newPage + 1);
+    setSelected([]); // Clear selection when changing page
   };
 
   // Handle rows per page change
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setPage(0);
+    setCurrentPage(1);
     setSelected([]);
-  };
-
-  // Handle refresh
-  const handleRefresh = () => {
-    loadDomainsFromStorage();
-    showNotification('Data refreshed successfully', 'success');
-  };
-
-  // Handle add domain
-  const handleAddDomain = (newDomain) => {
-    const domainWithId = {
-      ...newDomain,
-      id: Date.now(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    const updatedDomains = [...domains, domainWithId];
-    setDomains(updatedDomains);
-    saveDomainsToStorage(updatedDomains);
-    showNotification('Domain added successfully!', 'success');
-  };
-
-  // Handle edit domain
-  const handleEditDomain = (updatedDomain) => {
-    const updatedDomains = domains.map(domain =>
-      domain.id === updatedDomain.id 
-        ? { ...updatedDomain, updatedAt: new Date().toISOString() }
-        : domain
-    );
-    setDomains(updatedDomains);
-    saveDomainsToStorage(updatedDomains);
-    showNotification('Domain updated successfully!', 'success');
-  };
-
-  // Handle delete domain
-  const handleDeleteDomain = (domainId) => {
-    const updatedDomains = domains.filter(domain => domain.id !== domainId);
-    setDomains(updatedDomains);
-    setSelected(selected.filter(id => id !== domainId));
-    saveDomainsToStorage(updatedDomains);
-    showNotification('Domain deleted successfully!', 'success');
-  };
-
-  // Handle bulk delete
-  const handleBulkDelete = () => {
-    const updatedDomains = domains.filter(d => !selected.includes(d.id));
-    setDomains(updatedDomains);
-    setSelected([]);
-    saveDomainsToStorage(updatedDomains);
-    showNotification(`${selected.length} domains deleted successfully`, 'success');
   };
 
   // Show notification
@@ -348,7 +404,7 @@ const DomainManagement = () => {
   // Get avatar color based on domain name
   const getAvatarColor = (name) => {
     const colors = [COLORS.accent, '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
-    const charCode = name.charCodeAt(0) || 0;
+    const charCode = name?.charCodeAt(0) || 0;
     return colors[charCode % colors.length];
   };
 
@@ -357,12 +413,6 @@ const DomainManagement = () => {
     if (!name) return 'D';
     return name.substring(0, 2).toUpperCase();
   };
-
-  // Paginated domains
-  const paginatedDomains = filteredDomains.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
 
   return (
     <Box>
@@ -398,7 +448,7 @@ const DomainManagement = () => {
           {/* Search */}
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
             <TextField
-              placeholder="Search by domain name..."
+              placeholder="Search by domain name or description..."
               size="small"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -433,6 +483,19 @@ const DomainManagement = () => {
                 }
               }}
             />
+            {searchTerm && (
+              <Chip 
+                label={`Search: ${searchTerm}`}
+                size="small"
+                onDelete={() => {
+                  setSearchInput('');
+                  setSearchTerm('');
+                  setCurrentPage(1);
+                  setPage(0);
+                }}
+                sx={{ height: 28, fontSize: '0.7rem' }}
+              />
+            )}
           </Stack>
 
           {/* Action Buttons */}
@@ -443,6 +506,7 @@ const DomainManagement = () => {
                 color="error"
                 startIcon={<DeleteIcon sx={{ fontSize: '1rem' }} />}
                 onClick={handleBulkDelete}
+                disabled={loading}
                 sx={{ 
                   height: 36,
                   borderRadius: 1.5,
@@ -465,6 +529,7 @@ const DomainManagement = () => {
               variant="outlined"
               startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
               onClick={handleRefresh}
+              disabled={loading}
               sx={{ 
                 height: 36,
                 borderRadius: 1.5,
@@ -487,6 +552,7 @@ const DomainManagement = () => {
               variant="contained"
               startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
               onClick={() => setOpenAddModal(true)}
+              disabled={loading}
               sx={{
                 height: 36,
                 borderRadius: 1.5,
@@ -527,8 +593,8 @@ const DomainManagement = () => {
               }}>
                 <TableCell padding="checkbox" sx={{ width: 40 }}>
                   <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < filteredDomains.length}
-                    checked={filteredDomains.length > 0 && selected.length === filteredDomains.length}
+                    indeterminate={selected.length > 0 && selected.length < domains.length}
+                    checked={domains.length > 0 && selected.length === domains.length}
                     onChange={handleSelectAll}
                     sx={{
                       color: COLORS.text.light,
@@ -556,6 +622,14 @@ const DomainManagement = () => {
                   fontWeight: 600, 
                   fontSize: '0.7rem',
                   letterSpacing: '0.5px',
+                  color: COLORS.text.light
+                }}>
+                  Description
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600, 
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.5px',
                   color: COLORS.text.light,
                   width: 60
                 }} align="center">
@@ -566,16 +640,16 @@ const DomainManagement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={3} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
                       Loading domains...
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : paginatedDomains.length === 0 ? (
+              ) : domains.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={3} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <LanguageIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
@@ -588,7 +662,7 @@ const DomainManagement = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedDomains.map((domain) => {
+                domains.map((domain) => {
                   const isSelected = selected.includes(domain.id);
                   const avatarColor = getAvatarColor(domain.domainName);
 
@@ -643,12 +717,27 @@ const DomainManagement = () => {
                           >
                             {getDomainInitials(domain.domainName)}
                           </Avatar>
-                          <Box>
-                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary }}>
-                              {domain.domainName}
-                            </Typography>
-                          </Box>
+                          <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary }}>
+                            {domain.domainName}
+                          </Typography>
                         </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Typography 
+                          sx={{ 
+                            fontSize: '0.75rem', 
+                            color: COLORS.text.secondary,
+                            maxWidth: 300,
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical'
+                          }}
+                          title={domain.description}
+                        >
+                          {domain.description || '-'}
+                        </Typography>
                       </TableCell>
                       <TableCell align="center" sx={{ width: 60 }}>
                         <ActionMenu 
@@ -670,7 +759,7 @@ const DomainManagement = () => {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25, 50]}
           component="div"
-          count={filteredDomains.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}

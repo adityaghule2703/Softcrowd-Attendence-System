@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -42,6 +42,8 @@ import {
   School as SchoolIcon,
   Person as PersonIcon
 } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Import modal components
 import AddDepartment from './AddDepartment';
@@ -173,18 +175,22 @@ const ActionMenu = ({ department, onView, onEdit, onDelete }) => {
 
 const DepartmentManagement = () => {
   const [departments, setDepartments] = useState([]);
-  const [filteredDepartments, setFilteredDepartments] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selected, setSelected] = useState([]);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success'
   });
+
+  // Server-side pagination states
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
 
   // Modal states
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -193,73 +199,108 @@ const DepartmentManagement = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
 
-  // Load departments from localStorage on component mount
-  useEffect(() => {
-    loadDepartmentsFromStorage();
-  }, []);
-
-  const loadDepartmentsFromStorage = () => {
+  // Load departments from API with pagination and search
+  const loadDepartmentsFromAPI = useCallback(async () => {
     setLoading(true);
     try {
-      const storedDepartments = localStorage.getItem('departments');
-      if (storedDepartments) {
-        const parsedDepartments = JSON.parse(storedDepartments);
-        setDepartments(parsedDepartments);
-        setFilteredDepartments(parsedDepartments);
+      const token = localStorage.getItem('token');
+      const params = {
+        page: currentPage,
+        per_page: rowsPerPage,
+        search: searchTerm
+      };
+      
+      const response = await axios.get(`${BASE_URL}/departments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: params
+      });
+
+      if (response.data && response.data.data) {
+        // Transform API response to match component structure
+        const transformedDepartments = response.data.data.map(dept => ({
+          id: dept.id,
+          collegeId: dept.college_id,
+          collegeName: dept.college?.name || 'Unknown College',
+          departmentName: dept.department_name,
+          coordinatorName: dept.coordinator_name,
+          coordinatorContact: dept.coordinator_contact,
+          coordinatorEmail: dept.coordinator_email,
+          createdAt: dept.created_at,
+          updatedAt: dept.updated_at
+        }));
+        
+        setDepartments(transformedDepartments);
+        setTotalCount(response.data.total || 0);
+        setLastPage(response.data.last_page || 1);
       } else {
         setDepartments([]);
-        setFilteredDepartments([]);
-        localStorage.setItem('departments', JSON.stringify([]));
+        setTotalCount(0);
+        setLastPage(1);
       }
     } catch (error) {
       console.error('Error loading departments:', error);
-      showNotification('Failed to load departments', 'error');
+      showNotification(error.response?.data?.message || 'Failed to load departments', 'error');
+      setDepartments([]);
+      setTotalCount(0);
+      setLastPage(1);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, rowsPerPage, searchTerm]);
 
-  const saveDepartmentsToStorage = (updatedDepartments) => {
-    localStorage.setItem('departments', JSON.stringify(updatedDepartments));
-  };
-
-  // Handle search
-  const handleSearch = () => {
-    if (!searchTerm) {
-      setFilteredDepartments(departments);
-      return;
-    }
-    
-    const value = searchTerm.toLowerCase();
-    const filtered = departments.filter(department =>
-      department.collegeName?.toLowerCase().includes(value) ||
-      department.departmentName?.toLowerCase().includes(value) ||
-      department.coordinatorName?.toLowerCase().includes(value) ||
-      department.coordinatorContact?.toLowerCase().includes(value)
-    );
-    
-    setFilteredDepartments(filtered);
-  };
+  // Load departments when dependencies change
+  useEffect(() => {
+    loadDepartmentsFromAPI();
+  }, [loadDepartmentsFromAPI]);
 
   // Debounce search
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(searchInput);
-      setPage(0);
+      setCurrentPage(1); // Reset to first page when searching
+      setPage(0); // Reset pagination index
     }, 500);
 
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Apply search when searchTerm or departments change
-  React.useEffect(() => {
-    handleSearch();
-  }, [searchTerm, departments]);
+  // Handle add department
+  const handleAddDepartment = (newDepartment) => {
+    // Refresh to get updated list with college names
+    loadDepartmentsFromAPI();
+    showNotification('Department added successfully!', 'success');
+  };
 
-  // Handle select all
+  // Handle edit department
+  const handleEditDepartment = async (updatedDepartment) => {
+    // Refresh the entire list to get updated data with college names
+    await loadDepartmentsFromAPI();
+    showNotification('Department updated successfully!', 'success');
+  };
+
+  // Handle delete department
+  const handleDeleteDepartment = (departmentId) => {
+    // Remove from local state
+    setDepartments(prev => prev.filter(dept => dept.id !== departmentId));
+    setSelected(prev => prev.filter(id => id !== departmentId));
+    
+    // Refresh to update pagination and total count
+    loadDepartmentsFromAPI();
+    showNotification('Department deleted successfully!', 'success');
+  };
+
+  // Handle refresh
+  const handleRefresh = () => {
+    loadDepartmentsFromAPI();
+    showNotification('Data refreshed successfully', 'success');
+  };
+
+  // Handle select all on current page
   const handleSelectAll = (event) => {
     if (event.target.checked) {
-      setSelected(filteredDepartments.map(department => department.id));
+      setSelected(departments.map(dept => dept.id));
     } else {
       setSelected([]);
     }
@@ -279,67 +320,57 @@ const DepartmentManagement = () => {
     setSelected(newSelected);
   };
 
+  // Handle bulk delete
+  const handleBulkDelete = async () => {
+    if (selected.length === 0) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Delete each selected department
+      const deletePromises = selected.map(id => 
+        axios.delete(`${BASE_URL}/departments/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // Clear selection
+      setSelected([]);
+      
+      // Check if current page becomes empty and not first page
+      if (departments.length === selected.length && currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+        setPage(prev => prev - 1);
+      } else {
+        // Refresh current page
+        loadDepartmentsFromAPI();
+      }
+      
+      showNotification(`${selected.length} departments deleted successfully`, 'success');
+    } catch (error) {
+      console.error('Error bulk deleting departments:', error);
+      showNotification('Failed to delete some departments', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle page change
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
-    setSelected([]);
+    setCurrentPage(newPage + 1);
+    setSelected([]); // Clear selection when changing page
   };
 
   // Handle rows per page change
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setPage(0);
+    setCurrentPage(1);
     setSelected([]);
-  };
-
-  // Handle refresh
-  const handleRefresh = () => {
-    loadDepartmentsFromStorage();
-    showNotification('Data refreshed successfully', 'success');
-  };
-
-  // Handle add department
-  const handleAddDepartment = (newDepartment) => {
-    const departmentWithId = {
-      ...newDepartment,
-      id: Date.now(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    const updatedDepartments = [...departments, departmentWithId];
-    setDepartments(updatedDepartments);
-    saveDepartmentsToStorage(updatedDepartments);
-    showNotification('Department added successfully!', 'success');
-  };
-
-  // Handle edit department
-  const handleEditDepartment = (updatedDepartment) => {
-    const updatedDepartments = departments.map(department =>
-      department.id === updatedDepartment.id 
-        ? { ...updatedDepartment, updatedAt: new Date().toISOString() }
-        : department
-    );
-    setDepartments(updatedDepartments);
-    saveDepartmentsToStorage(updatedDepartments);
-    showNotification('Department updated successfully!', 'success');
-  };
-
-  // Handle delete department
-  const handleDeleteDepartment = (departmentId) => {
-    const updatedDepartments = departments.filter(department => department.id !== departmentId);
-    setDepartments(updatedDepartments);
-    setSelected(selected.filter(id => id !== departmentId));
-    saveDepartmentsToStorage(updatedDepartments);
-    showNotification('Department deleted successfully!', 'success');
-  };
-
-  // Handle bulk delete
-  const handleBulkDelete = () => {
-    const updatedDepartments = departments.filter(d => !selected.includes(d.id));
-    setDepartments(updatedDepartments);
-    setSelected([]);
-    saveDepartmentsToStorage(updatedDepartments);
-    showNotification(`${selected.length} departments deleted successfully`, 'success');
   };
 
   // Show notification
@@ -354,7 +385,7 @@ const DepartmentManagement = () => {
   // Get avatar color based on name
   const getAvatarColor = (name) => {
     const colors = [COLORS.accent, '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
-    const charCode = name.charCodeAt(0) || 0;
+    const charCode = name?.charCodeAt(0) || 0;
     return colors[charCode % colors.length];
   };
 
@@ -367,12 +398,6 @@ const DepartmentManagement = () => {
     }
     return name.substring(0, 2).toUpperCase();
   };
-
-  // Paginated departments
-  const paginatedDepartments = filteredDepartments.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
 
   return (
     <Box>
@@ -443,6 +468,19 @@ const DepartmentManagement = () => {
                 }
               }}
             />
+            {searchTerm && (
+              <Chip 
+                label={`Search: ${searchTerm}`}
+                size="small"
+                onDelete={() => {
+                  setSearchInput('');
+                  setSearchTerm('');
+                  setCurrentPage(1);
+                  setPage(0);
+                }}
+                sx={{ height: 28, fontSize: '0.7rem' }}
+              />
+            )}
           </Stack>
 
           {/* Action Buttons */}
@@ -453,6 +491,7 @@ const DepartmentManagement = () => {
                 color="error"
                 startIcon={<DeleteIcon sx={{ fontSize: '1rem' }} />}
                 onClick={handleBulkDelete}
+                disabled={loading}
                 sx={{ 
                   height: 36,
                   borderRadius: 1.5,
@@ -475,6 +514,7 @@ const DepartmentManagement = () => {
               variant="outlined"
               startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
               onClick={handleRefresh}
+              disabled={loading}
               sx={{ 
                 height: 36,
                 borderRadius: 1.5,
@@ -497,6 +537,7 @@ const DepartmentManagement = () => {
               variant="contained"
               startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
               onClick={() => setOpenAddModal(true)}
+              disabled={loading}
               sx={{
                 height: 36,
                 borderRadius: 1.5,
@@ -537,8 +578,8 @@ const DepartmentManagement = () => {
               }}>
                 <TableCell padding="checkbox" sx={{ width: 40 }}>
                   <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < filteredDepartments.length}
-                    checked={filteredDepartments.length > 0 && selected.length === filteredDepartments.length}
+                    indeterminate={selected.length > 0 && selected.length < departments.length}
+                    checked={departments.length > 0 && selected.length === departments.length}
                     onChange={handleSelectAll}
                     sx={{
                       color: COLORS.text.light,
@@ -607,7 +648,7 @@ const DepartmentManagement = () => {
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : paginatedDepartments.length === 0 ? (
+              ) : departments.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
@@ -622,9 +663,9 @@ const DepartmentManagement = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedDepartments.map((department) => {
+                departments.map((department) => {
                   const isSelected = selected.includes(department.id);
-                  const avatarColor = getAvatarColor(department.departmentName);
+                  const avatarColor = getAvatarColor(department.collegeName);
 
                   return (
                     <TableRow
@@ -701,20 +742,22 @@ const DepartmentManagement = () => {
                         </Stack>
                       </TableCell>
                       <TableCell>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <PhoneIcon sx={{ fontSize: 14, color: COLORS.text.tertiary }} />
-                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                            {department.coordinatorContact}
-                          </Typography>
-                        </Stack>
-                        {department.coordinatorEmail && (
-                          <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                            <EmailIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
-                            <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                              {department.coordinatorEmail}
+                        <Stack spacing={0.5}>
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <PhoneIcon sx={{ fontSize: 14, color: COLORS.text.tertiary }} />
+                            <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                              {department.coordinatorContact}
                             </Typography>
                           </Stack>
-                        )}
+                          {department.coordinatorEmail && (
+                            <Stack direction="row" spacing={1} alignItems="center">
+                              <EmailIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
+                              <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                                {department.coordinatorEmail}
+                              </Typography>
+                            </Stack>
+                          )}
+                        </Stack>
                       </TableCell>
                       <TableCell align="center" sx={{ width: 60 }}>
                         <ActionMenu 
@@ -736,7 +779,7 @@ const DepartmentManagement = () => {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25, 50]}
           component="div"
-          count={filteredDepartments.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}

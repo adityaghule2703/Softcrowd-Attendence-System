@@ -38,13 +38,14 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
 
   const mainMenu = [
   { path: "/", name: "Dashboard", icon: LayoutDashboard },
-  { path: "/student-management", name: "Student Management", icon: Users },
-  { path: "/dept-management", name: "Department Management", icon: Building2 },   // Department Icon
-  { path: "/batch-management", name: "Batch Management", icon: Layers3 },         // Batch Icon
   { path: "/domain-management", name: "Domain Management", icon: Users },
+  { path: "/holiday-management", name: "Holiday Management", icon: Users },
+  { path: "/college-management", name: "College Management", icon: GraduationCap },
+  { path: "/dept-management", name: "Department Management", icon: Building2 },   // Department Icon
+  { path: "/student-management", name: "Student Management", icon: Users },
+  { path: "/batch-management", name: "Batch Management", icon: Layers3 },         // Batch Icon
   { path: "/trainers", name: "Trainers", icon: UserCog },
   { path: "/attendance", name: "Attendance", icon: CalendarCheck },
-  { path: "/college-management", name: "College Management", icon: GraduationCap },
   { path: "/users", name: "Users", icon: UserRound },
   { path: "/roles", name: "Roles", icon: Shield },
   { path: "/reports", name: "Reports", icon: FileText },

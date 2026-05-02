@@ -17,8 +17,9 @@ import {
   CircularProgress
 } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
-// Color constants
 const COLORS = {
   primary: '#0F172A',
   primaryDark: '#0A0F1E',
@@ -36,6 +37,12 @@ const COLORS = {
   error: '#EF4444'
 };
 
+const COMPANY_OPTIONS = [
+  "Exilance Software",
+  "Softcrowd Technology",
+  "Codiant Solution"
+];
+
 const validatePhone = (phone) => {
   const phoneRegex = /^[0-9]{10}$/;
   return phoneRegex.test(phone);
@@ -44,86 +51,140 @@ const validatePhone = (phone) => {
 const EditStudent = ({ open, onClose, student, onUpdate }) => {
   const [colleges, setColleges] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [filteredDepartments, setFilteredDepartments] = useState([]);
   const [selectedCollege, setSelectedCollege] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [loadingColleges, setLoadingColleges] = useState(false);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
-    collegeName: '',
-    departmentName: '',
-    password: ''
+    college_id: '',
+    department_id: '',
+    password: '',
+    company_name: ''
   });
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Load data from localStorage
   useEffect(() => {
     if (open) {
-      loadColleges();
-      loadDepartments();
+      loadCollegesFromAPI();
+      loadDepartmentsFromAPI();
     }
   }, [open]);
 
-  const loadColleges = () => {
+  const loadCollegesFromAPI = async () => {
     setLoadingColleges(true);
     try {
-      const storedColleges = localStorage.getItem('colleges');
-      if (storedColleges) {
-        const parsedColleges = JSON.parse(storedColleges);
-        setColleges(parsedColleges);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/colleges`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        params: { per_page: 100 }
+      });
+
+      if (response.data && response.data.data) {
+        const transformedColleges = response.data.data.map(college => ({
+          id: college.id,
+          name: college.name,
+          city: college.city,
+          state: college.state,
+          pincode: college.pincode,
+          address: college.address
+        }));
+        setColleges(transformedColleges);
       }
     } catch (error) {
       console.error('Error loading colleges:', error);
+      setError('Failed to load colleges');
     } finally {
       setLoadingColleges(false);
     }
   };
 
-  const loadDepartments = () => {
+  const loadDepartmentsFromAPI = async () => {
     setLoadingDepartments(true);
     try {
-      const storedDepartments = localStorage.getItem('departments');
-      if (storedDepartments) {
-        const parsedDepartments = JSON.parse(storedDepartments);
-        setDepartments(parsedDepartments);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/departments`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        params: { per_page: 100 }
+      });
+
+      if (response.data && response.data.data) {
+        const transformedDepartments = response.data.data.map(dept => ({
+          id: dept.id,
+          department_name: dept.department_name,
+          college_id: dept.college_id,
+          coordinator_name: dept.coordinator_name,
+          coordinator_contact: dept.coordinator_contact,
+          coordinator_email: dept.coordinator_email
+        }));
+        setDepartments(transformedDepartments);
       }
     } catch (error) {
       console.error('Error loading departments:', error);
+      setError('Failed to load departments');
     } finally {
       setLoadingDepartments(false);
     }
   };
 
+  // Populate form when student data is available
   useEffect(() => {
     if (student && colleges.length > 0 && departments.length > 0) {
+      console.log('Student data in EditStudent:', student);
+      
       setFormData({
         name: student.name || '',
         mobile: student.mobile || '',
-        collegeName: student.collegeName || '',
-        departmentName: student.departmentName || '',
-        password: ''
+        college_id: student.collegeId || student.college_id || '',
+        department_id: student.departmentId || student.department_id || '',
+        password: '',
+        company_name: student.company_name || ''
       });
       
-      const foundCollege = colleges.find(c => c.name === student.collegeName);
+      // Find and set selected college
+      const collegeId = student.collegeId || student.college_id;
+      const foundCollege = colleges.find(c => c.id === collegeId);
       setSelectedCollege(foundCollege || null);
       
-      const foundDepartment = departments.find(d => d.departmentName === student.departmentName && d.collegeName === student.collegeName);
-      setSelectedDepartment(foundDepartment || null);
+      // Find and set selected department
+      if (collegeId) {
+        const filtered = departments.filter(dept => dept.college_id === collegeId);
+        const departmentId = student.departmentId || student.department_id;
+        const foundDepartment = filtered.find(d => d.id === departmentId);
+        setSelectedDepartment(foundDepartment || null);
+      }
+      
+      // Set selected company
+      const companyName = student.company_name || '';
+      console.log('Setting company name to:', companyName);
+      if (companyName && COMPANY_OPTIONS.includes(companyName)) {
+        setSelectedCompany(companyName);
+      }
     }
   }, [student, colleges, departments]);
 
   // Filter departments based on selected college
-  const getFilteredDepartments = () => {
-    if (!selectedCollege) return departments;
-    return departments.filter(dept => dept.collegeName === selectedCollege.name);
-  };
+  useEffect(() => {
+    if (selectedCollege) {
+      const filtered = departments.filter(dept => dept.college_id === selectedCollege.id);
+      setFilteredDepartments(filtered);
+      
+      if (selectedDepartment && selectedDepartment.college_id !== selectedCollege.id) {
+        setSelectedDepartment(null);
+        setFormData(prev => ({ ...prev, department_id: '' }));
+      }
+    } else {
+      setFilteredDepartments([]);
+    }
+  }, [selectedCollege, departments, selectedDepartment]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
     setFieldErrors(prev => ({ ...prev, [name]: '' }));
     
     let processedValue = value;
@@ -137,20 +198,29 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
   const handleCollegeChange = (event, newValue) => {
     setSelectedCollege(newValue);
     setSelectedDepartment(null);
-    setFieldErrors(prev => ({ ...prev, collegeName: '', departmentName: '' }));
+    setFieldErrors(prev => ({ ...prev, college_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
-      collegeName: newValue ? newValue.name : '',
-      departmentName: ''
+      college_id: newValue ? newValue.id : '',
+      department_id: ''
     }));
   };
 
   const handleDepartmentChange = (event, newValue) => {
     setSelectedDepartment(newValue);
-    setFieldErrors(prev => ({ ...prev, departmentName: '' }));
+    setFieldErrors(prev => ({ ...prev, department_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
-      departmentName: newValue ? newValue.departmentName : ''
+      department_id: newValue ? newValue.id : ''
+    }));
+  };
+
+  const handleCompanyChange = (event, newValue) => {
+    setSelectedCompany(newValue);
+    setFieldErrors(prev => ({ ...prev, company_name: '' }));
+    setFormData(prev => ({ 
+      ...prev, 
+      company_name: newValue || ''
     }));
   };
 
@@ -171,13 +241,21 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
       isValid = false;
     }
 
-    if (!formData.collegeName?.trim()) {
-      errors.collegeName = 'College name is required';
+    if (!formData.college_id) {
+      errors.college_id = 'College name is required';
       isValid = false;
     }
 
-    if (!formData.departmentName?.trim()) {
-      errors.departmentName = 'Department name is required';
+    if (!formData.department_id) {
+      errors.department_id = 'Department name is required';
+      isValid = false;
+    }
+
+    if (!formData.company_name?.trim()) {
+      errors.company_name = 'Company name is required';
+      isValid = false;
+    } else if (!COMPANY_OPTIONS.includes(formData.company_name)) {
+      errors.company_name = 'Please select a valid company from the options';
       isValid = false;
     }
 
@@ -200,15 +278,47 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      const updateData = { ...formData, id: student.id };
-      if (!updateData.password) {
-        delete updateData.password;
+      const token = localStorage.getItem('token');
+      const payload = {
+        name: formData.name.trim(),
+        mobile: formData.mobile,
+        college_id: parseInt(formData.college_id),
+        department_id: parseInt(formData.department_id),
+        company_name: formData.company_name
+      };
+      
+      if (formData.password) {
+        payload.password = formData.password;
       }
-      onUpdate(updateData);
-      onClose();
+
+      console.log('Update payload:', payload);
+
+      const response = await axios.put(`${BASE_URL}/students/${student.id}`, payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.data) {
+        onUpdate(response.data.data);
+        onClose();
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (err) {
-      setError('Failed to update student. Please try again.');
+      console.error('Error updating student:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to update student. Please try again.';
+      setError(errorMessage);
+      
+      if (err.response?.data?.errors) {
+        const backendErrors = err.response.data.errors;
+        const newFieldErrors = {};
+        Object.keys(backendErrors).forEach(key => {
+          newFieldErrors[key] = backendErrors[key][0];
+        });
+        setFieldErrors(newFieldErrors);
+      }
     } finally {
       setLoading(false);
     }
@@ -220,101 +330,36 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
     onClose();
   };
 
-  // TextField styling
   const textFieldSx = {
     '& .MuiOutlinedInput-root': {
       borderRadius: 1.5,
       fontSize: '0.75rem',
       '&:hover fieldset': { borderColor: COLORS.accent },
       '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 },
-      '&.Mui-error fieldset': { borderColor: COLORS.error }
     },
     '& .MuiInputBase-input': {
       py: 1,
       px: 1.5,
       fontSize: '0.75rem',
-      color: COLORS.text.primary,
-      '&::placeholder': {
-        color: COLORS.text.tertiary,
-        fontSize: '0.75rem'
-      }
-    }
-  };
-
-  const numberFieldSx = {
-    ...textFieldSx,
-    '& input[type=number]': { MozAppearance: 'textfield' },
-    '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
-      WebkitAppearance: 'none',
-      margin: 0
     }
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="md"
-      fullWidth
-      PaperProps={{
-        sx: {
-          borderRadius: 2,
-          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
-          border: `1px solid ${COLORS.border}`,
-          overflow: 'hidden'
-        }
-      }}
-    >
-      <DialogTitle sx={{
-        borderBottom: `1px solid ${COLORS.border}`,
-        py: 1.5,
-        px: 2.5,
-        mb: 2,
-        bgcolor: COLORS.background.white,
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center'
-      }}>
-        <Typography sx={{ fontSize: '1.2rem', fontWeight: 700, color: COLORS.text.primary }}>
-          Edit Student
-        </Typography>
-        {student?.id && (
-          <Chip
-            label={`ID: ${student.id}`}
-            size="small"
-            sx={{ 
-              fontSize: '0.65rem',
-              fontWeight: 500,
-              height: 20,
-              bgcolor: COLORS.background.light,
-              color: COLORS.text.secondary
-            }}
-          />
-        )}
+    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ borderBottom: `1px solid ${COLORS.border}`, py: 1.5, px: 2.5,mb: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Typography sx={{ fontSize: '1.2rem', fontWeight: 700, color: COLORS.text.primary }}>Edit Student</Typography>
+        {student?.id && <Chip label={`ID: ${student.id}`} size="small" sx={{ fontSize: '0.65rem', height: 20 }} />}
       </DialogTitle>
 
-      <DialogContent sx={{ p: 2.5, bgcolor: COLORS.background.white }}>
+      <DialogContent sx={{ p: 2.5 }}>
         <Stack spacing={2}>
-          <Paper sx={{ 
-            p: 2, 
-            bgcolor: COLORS.background.white, 
-            borderRadius: 1.5, 
-            border: `1px solid ${COLORS.border}`,
-            boxShadow: 'none'
-          }}>
-            <Typography sx={{ 
-              fontSize: '0.8rem', 
-              fontWeight: 600, 
-              color: COLORS.accent, 
-              mb: 1.5 
-            }}>
-              Student Information
-            </Typography>
+          <Paper sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.accent, mb: 1.5 }}>Student Information</Typography>
             
             <Grid container spacing={1.5}>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
                     STUDENT NAME <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -324,7 +369,6 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
                     value={formData.name}
                     onChange={handleChange}
                     disabled={loading}
-                    placeholder="e.g., John Doe"
                     error={!!fieldErrors.name}
                     helperText={fieldErrors.name}
                     sx={textFieldSx}
@@ -333,8 +377,8 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
                     MOBILE NUMBER <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -344,21 +388,17 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
                     value={formData.mobile}
                     onChange={handleChange}
                     disabled={loading}
-                    placeholder="e.g., 9876543210"
                     error={!!fieldErrors.mobile}
                     helperText={fieldErrors.mobile}
                     inputProps={{ maxLength: 10 }}
-                    sx={numberFieldSx}
+                    sx={textFieldSx}
                   />
-                  <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                    10-digit mobile number
-                  </Typography>
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
                     COLLEGE NAME <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <Autocomplete
@@ -367,120 +407,79 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
                     loading={loadingColleges}
                     value={selectedCollege}
                     onChange={handleCollegeChange}
-                    getOptionLabel={(option) => option.name || ''}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    getOptionLabel={(option) => option?.name || ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     disabled={loading}
-                    renderInput={(params) => {
-                      const { InputLabelProps, InputProps, ...rest } = params;
-                      return (
-                        <TextField
-                          {...rest}
-                          size="small"
-                          placeholder={loadingColleges ? 'Loading colleges...' : 'Search and select college'}
-                          error={!!fieldErrors.collegeName}
-                          helperText={fieldErrors.collegeName}
-                          sx={textFieldSx}
-                          InputProps={{
-                            ...InputProps,
-                            endAdornment: (
-                              <>
-                                {loadingColleges && <CircularProgress color="inherit" size={16} />}
-                                {InputProps?.endAdornment}
-                              </>
-                            ),
-                          }}
-                        />
-                      );
-                    }}
-                    renderOption={(props, option) => (
-                      <li {...props}>
-                        <Box>
-                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
-                            {option.name}
-                          </Typography>
-                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                            {option.city}, {option.state} - {option.pincode}
-                          </Typography>
-                        </Box>
-                      </li>
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        placeholder="Search and select college"
+                        error={!!fieldErrors.college_id}
+                        helperText={fieldErrors.college_id}
+                        sx={textFieldSx}
+                      />
                     )}
-                    ListboxProps={{
-                      sx: {
-                        '& .MuiAutocomplete-option': {
-                          fontSize: '0.75rem',
-                          py: 1,
-                          px: 1.5
-                        }
-                      }
-                    }}
                   />
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
                     DEPARTMENT NAME <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <Autocomplete
                     fullWidth
-                    options={getFilteredDepartments()}
+                    options={filteredDepartments}
                     loading={loadingDepartments}
                     value={selectedDepartment}
                     onChange={handleDepartmentChange}
-                    getOptionLabel={(option) => option.departmentName || ''}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    getOptionLabel={(option) => option?.department_name || ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     disabled={loading || !selectedCollege}
-                    renderInput={(params) => {
-                      const { InputLabelProps, InputProps, ...rest } = params;
-                      return (
-                        <TextField
-                          {...rest}
-                          size="small"
-                          placeholder={!selectedCollege ? 'Please select college first' : (loadingDepartments ? 'Loading departments...' : 'Search and select department')}
-                          error={!!fieldErrors.departmentName}
-                          helperText={fieldErrors.departmentName}
-                          sx={textFieldSx}
-                          InputProps={{
-                            ...InputProps,
-                            endAdornment: (
-                              <>
-                                {loadingDepartments && <CircularProgress color="inherit" size={16} />}
-                                {InputProps?.endAdornment}
-                              </>
-                            ),
-                          }}
-                        />
-                      );
-                    }}
-                    renderOption={(props, option) => (
-                      <li {...props}>
-                        <Box>
-                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
-                            {option.departmentName}
-                          </Typography>
-                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                            Coordinator: {option.coordinatorName} | Contact: {option.coordinatorContact}
-                          </Typography>
-                        </Box>
-                      </li>
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        placeholder={!selectedCollege ? 'Please select college first' : 'Search and select department'}
+                        error={!!fieldErrors.department_id}
+                        helperText={fieldErrors.department_id}
+                        sx={textFieldSx}
+                      />
                     )}
-                    ListboxProps={{
-                      sx: {
-                        '& .MuiAutocomplete-option': {
-                          fontSize: '0.75rem',
-                          py: 1,
-                          px: 1.5
-                        }
-                      }
-                    }}
                   />
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
+                    COMPANY NAME <span style={{ color: COLORS.error }}>*</span>
+                  </Typography>
+                  <Autocomplete
+                    fullWidth
+                    options={COMPANY_OPTIONS}
+                    value={selectedCompany}
+                    onChange={handleCompanyChange}
+                    disabled={loading}
+                    renderInput={(params) => (
+                      <TextField
+                        {...params}
+                        size="small"
+                        placeholder="Select company name"
+                        error={!!fieldErrors.company_name}
+                        helperText={fieldErrors.company_name}
+                        sx={textFieldSx}
+                      />
+                    )}
+                  />
+                </Box>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
                     PASSWORD (Leave blank to keep current)
                   </Typography>
                   <TextField
@@ -501,70 +500,13 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
             </Grid>
           </Paper>
 
-          {error && (
-            <Alert 
-              severity="error" 
-              sx={{ 
-                mt: 2, 
-                borderRadius: 1.5,
-                fontSize: '0.75rem',
-                py: 0.5
-              }}
-            >
-              {error}
-            </Alert>
-          )}
+          {error && <Alert severity="error" sx={{ borderRadius: 1.5 }}>{error}</Alert>}
         </Stack>
       </DialogContent>
 
-      <DialogActions sx={{
-        px: 2.5,
-        py: 1.5,
-        borderTop: `1px solid ${COLORS.border}`,
-        bgcolor: COLORS.background.white,
-        justifyContent: 'flex-end'
-      }}>
-        <Button
-          onClick={handleClose}
-          disabled={loading}
-          size="small"
-          sx={{
-            height: 32,
-            px: 2,
-            borderRadius: 1.5,
-            border: `1px solid ${COLORS.border}`,
-            color: COLORS.text.secondary,
-            fontSize: '0.7rem',
-            fontWeight: 500,
-            textTransform: 'none',
-            '&:hover': {
-              borderColor: COLORS.accent,
-              bgcolor: `${COLORS.accent}10`
-            }
-          }}
-        >
-          Cancel
-        </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={loading}
-          size="small"
-          startIcon={<EditIcon sx={{ fontSize: '1rem' }} />}
-          sx={{
-            height: 32,
-            px: 2,
-            borderRadius: 1.5,
-            bgcolor: COLORS.primary,
-            fontSize: '0.7rem',
-            fontWeight: 500,
-            textTransform: 'none',
-            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-            '&:hover': {
-              bgcolor: COLORS.primaryDark,
-            }
-          }}
-        >
+      <DialogActions sx={{ px: 2.5, py: 1.5, borderTop: `1px solid ${COLORS.border}` }}>
+        <Button onClick={handleClose} disabled={loading}>Cancel</Button>
+        <Button variant="contained" onClick={handleSubmit} disabled={loading} startIcon={loading ? <CircularProgress size={16} /> : <EditIcon />}>
           {loading ? 'Updating...' : 'Update Student'}
         </Button>
       </DialogActions>

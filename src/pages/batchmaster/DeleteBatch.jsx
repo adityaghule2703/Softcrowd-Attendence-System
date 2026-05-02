@@ -16,7 +16,6 @@ import { Delete as DeleteIcon } from '@mui/icons-material';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
 
-// Color constants
 const COLORS = {
   primary: '#0F172A',
   accent: '#00AEED',
@@ -33,22 +32,28 @@ const COLORS = {
   error: '#EF4444'
 };
 
-const DeleteCollege = ({ open, onClose, college, onDelete }) => {
+const DeleteBatch = ({ open, onClose, batch, onDelete }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const getCollegeInitials = (name) => {
-    if (!name) return 'C';
-    const words = name.split(' ');
-    if (words.length >= 2) {
-      return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
-    }
+  const getBatchInitials = (name) => {
+    if (!name) return 'B';
     return name.substring(0, 2).toUpperCase();
   };
 
+  // Format time (remove seconds if present)
+  const formatTime = (time) => {
+    if (!time) return '-';
+    if (time.includes(':')) {
+      const parts = time.split(':');
+      return `${parts[0]}:${parts[1]}`;
+    }
+    return time;
+  };
+
   const handleDelete = async () => {
-    if (!college?.id) {
-      setError('Invalid college data');
+    if (!batch?.id) {
+      setError('Invalid batch data');
       return;
     }
 
@@ -57,7 +62,7 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.delete(`${BASE_URL}/colleges/${college.id}`, {
+      const response = await axios.delete(`${BASE_URL}/batches/${batch.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -66,22 +71,29 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
 
       // Check if delete was successful (status 200, 201, 204)
       if (response.status === 200 || response.status === 201 || response.status === 204) {
-        // Call the onDelete callback with the college ID
-        onDelete(college.id);
+        // Call the onDelete callback with the batch ID
+        onDelete(batch.id);
         onClose();
       } else {
-        throw new Error('Failed to delete college');
+        throw new Error('Failed to delete batch');
       }
     } catch (err) {
-      console.error('Error deleting college:', err);
+      console.error('Error deleting batch:', err);
       const errorMessage = err.response?.data?.message || 
                           err.response?.data?.error ||
-                          'Failed to delete college. Please try again.';
+                          'Failed to delete batch. Please try again.';
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  // Get display values (handle both camelCase and snake_case)
+  const domainName = batch?.domainName || batch?.domain?.name || 'Unknown Domain';
+  const startTime = batch?.startTime || batch?.start_time;
+  const endTime = batch?.endTime || batch?.end_time;
+  const strength = batch?.strength;
+  const trainerName = batch?.trainer || batch?.trainer_name;
 
   return (
     <Dialog 
@@ -90,7 +102,7 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
       maxWidth="sm" 
       fullWidth
       PaperProps={{
-        sx: { 
+        sx: {
           borderRadius: 2,
           boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
           border: `1px solid ${COLORS.border}`,
@@ -100,8 +112,8 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
     >
       <DialogTitle sx={{ 
         borderBottom: `1px solid ${COLORS.border}`, 
-        pb: 2,
-        mb: 2,
+        pb: 2, 
+        mb:2,
         backgroundColor: COLORS.background.light
       }}>
         <Typography sx={{ fontSize: '1.1rem', fontWeight: 600, color: COLORS.text.primary }}>
@@ -115,39 +127,44 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
             <Avatar sx={{ 
               width: 60, 
               height: 60, 
-              bgcolor: COLORS.accent,
-              fontSize: '1.25rem'
+              bgcolor: COLORS.accent, 
+              fontSize: '1.25rem',
+              fontWeight: 600
             }}>
-              {getCollegeInitials(college?.name)}
+              {getBatchInitials(domainName)}
             </Avatar>
             <Box>
               <Typography variant="h6" fontWeight={600} color={COLORS.text.primary}>
-                {college?.name}
+                {domainName}
               </Typography>
               <Typography variant="body2" color={COLORS.text.secondary}>
-                {college?.city}, {college?.state}
+                ⏰ {formatTime(startTime)} - {formatTime(endTime)}
               </Typography>
             </Box>
           </Stack>
           
           <Stack spacing={1}>
             <Typography variant="body2">
-              <strong>Address:</strong> {college?.address}
+              <strong>Strength:</strong> {strength} students
             </Typography>
-            <Typography variant="body2">
-              <strong>Contact:</strong> {college?.contact || college?.contact_number}
-            </Typography>
-            <Typography variant="body2">
-              <strong>Email:</strong> {college?.email || '-'}
-            </Typography>
+            {trainerName && (
+              <Typography variant="body2">
+                <strong>Trainer:</strong> {trainerName}
+              </Typography>
+            )}
+            {(batch?.start_date || batch?.startDate) && (
+              <Typography variant="body2">
+                <strong>Duration:</strong> {batch?.start_date || batch?.startDate} to {batch?.end_date || batch?.endDate}
+              </Typography>
+            )}
           </Stack>
         </Stack>
         
         <Typography variant="body1" sx={{ mb: 2, fontSize: '0.875rem' }}>
-          Are you sure you want to delete this college?
+          Are you sure you want to delete this batch?
         </Typography>
         <Typography variant="body2" sx={{ fontSize: '0.875rem', fontWeight: 500, color: COLORS.error }}>
-          ⚠️ This action cannot be undone. All college records will be permanently deleted.
+          ⚠️ This action cannot be undone. All batch records and associated student assignments will be permanently deleted.
         </Typography>
         
         {error && (
@@ -161,7 +178,7 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
         px: 3, 
         pb: 3, 
         borderTop: `1px solid ${COLORS.border}`, 
-        pt: 2,
+        pt: 2, 
         backgroundColor: COLORS.background.light
       }}>
         <Button 
@@ -184,11 +201,11 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
         >
           Cancel
         </Button>
-        <Button
-          variant="contained"
-          color="error"
-          onClick={handleDelete}
-          disabled={loading}
+        <Button 
+          variant="contained" 
+          color="error" 
+          onClick={handleDelete} 
+          disabled={loading} 
           startIcon={loading ? <CircularProgress size={16} /> : <DeleteIcon />}
           sx={{
             borderRadius: 1.5,
@@ -203,11 +220,11 @@ const DeleteCollege = ({ open, onClose, college, onDelete }) => {
             }
           }}
         >
-          {loading ? 'Deleting...' : 'Delete College'}
+          {loading ? 'Deleting...' : 'Delete Batch'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default DeleteCollege;
+export default DeleteBatch;

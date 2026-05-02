@@ -54,6 +54,11 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
     return name.substring(0, 2).toUpperCase();
   };
 
+  // Helper function to get contact number from either field name
+  const getContactNumber = () => {
+    return college.contact || college.contact_number || '-';
+  };
+
   const renderField = (icon, label, value) => (
     <Stack direction="row" spacing={1} alignItems="flex-start">
       <Box sx={{ color: COLORS.accent, mt: 0.3, minWidth: 20 }}>
@@ -67,7 +72,8 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
             display: 'block', 
             fontSize: '10px',
             fontWeight: 500,
-            mb: 0.2
+            mb: 0.2,
+            letterSpacing: '0.5px'
           }}
         >
           {label}
@@ -118,11 +124,11 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
                 </Box>
               </Stack>
 
-              <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1.5, fontWeight: 600, fontSize: '0.8rem' }}>
+              <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1.5, fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.5px' }}>
                 Basic Information
               </Typography>
               
-              <Grid container spacing={1}>
+              <Grid container spacing={1.5}>
                 <Grid size={{ xs: 12 }}>
                   {renderField(<LocationOn sx={{ fontSize: 16 }} />, 'Address', college.address)}
                 </Grid>
@@ -140,19 +146,55 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
 
             {/* Contact Information */}
             <Paper sx={{ p: 1.5, backgroundColor: COLORS.background.white, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
-              <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1, fontWeight: 600, fontSize: '0.8rem' }}>
+              <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1, fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.5px' }}>
                 Contact Information
               </Typography>
               
-              <Grid container spacing={1}>
+              <Grid container spacing={1.5}>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  {renderField(<Phone sx={{ fontSize: 16 }} />, 'Contact Number', college.contact)}
+                  {renderField(<Phone sx={{ fontSize: 16 }} />, 'Contact Number', getContactNumber())}
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   {renderField(<Email sx={{ fontSize: 16 }} />, 'Email', college.email || 'Not provided')}
                 </Grid>
               </Grid>
             </Paper>
+
+            {/* Metadata Information */}
+            {college.createdAt && (
+              <Paper sx={{ p: 1.5, backgroundColor: COLORS.background.white, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
+                <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1, fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.5px' }}>
+                  Additional Information
+                </Typography>
+                
+                <Grid container spacing={1.5}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="caption" sx={{ color: COLORS.text.secondary, fontSize: '10px', fontWeight: 500, display: 'block', mb: 0.2 }}>
+                      CREATED AT
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '12px', color: COLORS.text.primary }}>
+                      {new Date(college.createdAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </Typography>
+                  </Grid>
+                  <Grid size={{ xs: 12, sm: 6 }}>
+                    <Typography variant="caption" sx={{ color: COLORS.text.secondary, fontSize: '10px', fontWeight: 500, display: 'block', mb: 0.2 }}>
+                      LAST UPDATED
+                    </Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '12px', color: COLORS.text.primary }}>
+                      {new Date(college.updatedAt).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Paper>
+            )}
           </Stack>
         );
 
@@ -169,18 +211,19 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 1.5,
+          borderRadius: 2,
           overflow: 'hidden',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
-          maxHeight: '550px'
+          boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
+          border: `1px solid ${COLORS.border}`,
+          maxHeight: '90vh'
         }
       }}
     >
       {/* Header */}
       <Box sx={{ 
         background: COLORS.primary,
-        py: 1,
-        px: 2
+        py: 1.5,
+        px: 2.5
       }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" alignItems="center" spacing={1}>
@@ -188,7 +231,8 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
             <Typography variant="subtitle2" sx={{ 
               fontWeight: 600, 
               color: COLORS.text.light,
-              fontSize: '0.9rem'
+              fontSize: '0.9rem',
+              letterSpacing: '0.5px'
             }}>
               College Details
             </Typography>
@@ -197,22 +241,26 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
             label={`ID: ${college.id}`}
             size="small"
             sx={{
-              bgcolor: 'rgba(255,255,255,0.2)',
+              bgcolor: 'rgba(255,255,255,0.15)',
               color: COLORS.text.light,
               fontWeight: 500,
               fontSize: '10px',
-              height: '20px'
+              height: '22px',
+              '& .MuiChip-label': {
+                px: 1.5
+              }
             }}
           />
         </Stack>
       </Box>
 
       <DialogContent sx={{ 
-        p: 1.5, 
-        overflow: 'hidden', 
-        height: '400px',
+        p: 2.5, 
+        overflow: 'auto', 
+        maxHeight: 'calc(90vh - 120px)',
+        bgcolor: COLORS.background.light,
         '&:last-child': {
-          pb: 1.5
+          pb: 2.5
         }
       }}>
         {renderStepContent(activeStep)}
@@ -220,17 +268,25 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
 
       {/* Footer Actions */}
       <Box sx={{
-        px: 2,
-        py: 1,
+        px: 2.5,
+        py: 1.5,
         borderTop: `1px solid ${COLORS.border}`,
-        backgroundColor: COLORS.background.light
+        backgroundColor: COLORS.background.white
       }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Button
             onClick={onClose}
-            startIcon={<CloseIcon />}
+            startIcon={<CloseIcon sx={{ fontSize: '1rem' }} />}
             size="small"
-            sx={{ color: COLORS.text.secondary, fontSize: '0.8rem' }}
+            sx={{ 
+              color: COLORS.text.secondary, 
+              fontSize: '0.75rem',
+              textTransform: 'none',
+              fontWeight: 500,
+              '&:hover': {
+                bgcolor: `${COLORS.accent}10`
+              }
+            }}
           >
             Close
           </Button>
@@ -243,11 +299,16 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
                 if (onEdit) onEdit(college);
               }}
               size="small"
-              startIcon={<EditIcon />}
+              startIcon={<EditIcon sx={{ fontSize: '1rem' }} />}
               sx={{
                 backgroundColor: COLORS.accent,
-                fontSize: '0.8rem',
-                '&:hover': { backgroundColor: COLORS.primary }
+                fontSize: '0.75rem',
+                textTransform: 'none',
+                fontWeight: 500,
+                px: 2,
+                '&:hover': { 
+                  backgroundColor: COLORS.primary 
+                }
               }}
             >
               Edit College

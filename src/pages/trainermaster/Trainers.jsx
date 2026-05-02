@@ -26,7 +26,14 @@ import {
   Divider,
   Alert,
   CircularProgress,
-  Snackbar
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Autocomplete,
+  List,
+  ListItem
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -36,20 +43,24 @@ import {
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
-  Business as BusinessIcon,
+  People as PeopleIcon,
   Phone as PhoneIcon,
-  Email as EmailIcon
+  LocationOn as LocationOnIcon,
+  Email as EmailIcon,
+  Assignment as AssignmentIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
+import { CheckCircle, XCircle } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
 
 // Import modal components
-import AddCollege from './AddCollege';
-import EditCollege from './EditCollege';
-import ViewCollege from './ViewCollege';
-import DeleteCollege from './DeleteCollege';
+import AddTrainer from './AddTrainer';
+import EditTrainer from './EditTrainer';
+import ViewTrainer from './ViewTrainer';
+import DeleteTrainer from './DeleteTrainer';
 
-// Color constants - Using sidebar background color (#0F172A)
+// Color constants
 const COLORS = {
   primary: '#0F172A',
   primaryLight: '#1E293B',
@@ -70,8 +81,204 @@ const COLORS = {
   border: '#E2E8F0'
 };
 
+// Assign Batch Dialog Component
+const AssignBatchDialog = ({ open, onClose, trainer, batches, onAssign }) => {
+  const [selectedBatch, setSelectedBatch] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [assignedBatches, setAssignedBatches] = useState(trainer?.batches || []);
+
+  useEffect(() => {
+    if (trainer) {
+      setAssignedBatches(trainer.batches || []);
+    }
+  }, [trainer]);
+
+  const handleAssign = async () => {
+    if (!selectedBatch) {
+      setError('Please select a batch');
+      return;
+    }
+
+    if (assignedBatches.some(b => b.id === selectedBatch.id)) {
+      setError('This batch is already assigned to the trainer');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post(`${BASE_URL}/assign-trainer-batch`, {
+        trainer_id: trainer.id,
+        batch_id: selectedBatch.id
+      }, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data && response.data.data) {
+        const updatedBatches = [...assignedBatches, selectedBatch];
+        setAssignedBatches(updatedBatches);
+        onAssign(trainer.id, updatedBatches);
+        setSelectedBatch(null);
+      }
+    } catch (err) {
+      console.error('Error assigning batch:', err);
+      setError(err.response?.data?.message || 'Failed to assign batch. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRemoveBatch = async (batchId) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${BASE_URL}/assign-trainer-batch/${batchId}`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        data: { trainer_id: trainer.id }
+      });
+
+      const updatedBatches = assignedBatches.filter(b => b.id !== batchId);
+      setAssignedBatches(updatedBatches);
+      onAssign(trainer.id, updatedBatches);
+    } catch (err) {
+      console.error('Error removing batch:', err);
+      setError(err.response?.data?.message || 'Failed to remove batch. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const availableBatches = batches.filter(
+    batch => !assignedBatches.some(assigned => assigned.id === batch.id)
+  );
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle sx={{ borderBottom: `1px solid ${COLORS.border}`, pb: 2, mb: 2 }}>
+        <Typography sx={{ fontSize: '1.1rem', fontWeight: 600, color: COLORS.text.primary }}>
+          Manage Batches for {trainer?.name}
+        </Typography>
+      </DialogTitle>
+      
+      <DialogContent sx={{ pt: 3 }}>
+        <Stack spacing={3}>
+          {assignedBatches.length > 0 && (
+            <Box>
+              <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.text.secondary, mb: 1.5 }}>
+                Assigned Batches
+              </Typography>
+              <Paper variant="outlined" sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
+                <List dense disablePadding>
+                  {assignedBatches.map((batch, index) => (
+                    <ListItem
+                      key={batch.id}
+                      divider={index < assignedBatches.length - 1}
+                      sx={{ py: 1.5 }}
+                    >
+                      <Box sx={{ flex: 1 }}>
+                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                          Batch #{batch.id} - {batch.trainer_name || batch.domain?.name}
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                          📅 {batch.start_date} to {batch.end_date} | ⏰ {batch.start_time} - {batch.end_time}
+                        </Typography>
+                      </Box>
+                      <IconButton
+                        size="small"
+                        onClick={() => handleRemoveBatch(batch.id)}
+                        sx={{ color: '#EF4444' }}
+                        disabled={loading}
+                      >
+                        <CloseIcon fontSize="small" />
+                      </IconButton>
+                    </ListItem>
+                  ))}
+                </List>
+              </Paper>
+            </Box>
+          )}
+
+          <Box>
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.text.secondary, mb: 1.5 }}>
+              Add New Batch
+            </Typography>
+            <Stack direction="row" spacing={2} alignItems="flex-start">
+              <Box sx={{ flex: 1 }}>
+                <Autocomplete
+                  fullWidth
+                  options={availableBatches}
+                  value={selectedBatch}
+                  onChange={(event, newValue) => {
+                    setSelectedBatch(newValue);
+                    setError('');
+                  }}
+                  getOptionLabel={(option) => `Batch #${option.id} - ${option.trainer_name || option.domain?.name}`}
+                  isOptionEqualToValue={(option, value) => option.id === value.id}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      size="small"
+                      placeholder="Search and select batch"
+                      error={!!error}
+                      helperText={error}
+                      sx={{
+                        '& .MuiOutlinedInput-root': {
+                          borderRadius: 1.5,
+                          fontSize: '0.75rem',
+                          '&:hover fieldset': { borderColor: COLORS.accent },
+                          '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
+                        }
+                      }}
+                    />
+                  )}
+                  renderOption={(props, option) => (
+                    <li {...props}>
+                      <Box>
+                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
+                          Batch #{option.id} - {option.trainer_name || option.domain?.name}
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
+                          📅 {option.start_date} to {option.end_date} | ⏰ {option.start_time} - {option.end_time}
+                        </Typography>
+                      </Box>
+                    </li>
+                  )}
+                />
+              </Box>
+              <Button
+                variant="contained"
+                onClick={handleAssign}
+                disabled={loading || !selectedBatch}
+                startIcon={loading ? <CircularProgress size={16} /> : <AssignmentIcon />}
+                sx={{
+                  height: 40,
+                  minWidth: 100,
+                  borderRadius: 1.5,
+                  bgcolor: COLORS.accent,
+                  textTransform: 'none',
+                  fontSize: '0.75rem',
+                  '&:hover': { bgcolor: COLORS.primary }
+                }}
+              >
+                {loading ? 'Adding...' : 'Add Batch'}
+              </Button>
+            </Stack>
+          </Box>
+        </Stack>
+      </DialogContent>
+      
+      <DialogActions sx={{ px: 3, pb: 3, borderTop: `1px solid ${COLORS.border}`, pt: 2 }}>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 // Action Menu Component
-const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
+const ActionMenu = ({ trainer, onView, onEdit, onDelete, onAssignBatch }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -116,7 +323,7 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
       >
         <MenuItem 
           onClick={() => {
-            onView(college);
+            onView(trainer);
             handleClose();
           }}
           sx={{ py: 1.5 }}
@@ -133,7 +340,7 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
         
         <MenuItem 
           onClick={() => {
-            onEdit(college);
+            onEdit(trainer);
             handleClose();
           }}
           sx={{ py: 1.5 }}
@@ -147,12 +354,29 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
             </Typography>
           </ListItemText>
         </MenuItem>
+
+        <MenuItem 
+          onClick={() => {
+            onAssignBatch(trainer);
+            handleClose();
+          }}
+          sx={{ py: 1.5 }}
+        >
+          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+            <AssignmentIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>
+            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+              Manage Batches
+            </Typography>
+          </ListItemText>
+        </MenuItem>
         
         <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
         
         <MenuItem 
           onClick={() => {
-            onDelete(college);
+            onDelete(trainer);
             handleClose();
           }}
           sx={{ py: 1.5 }}
@@ -171,8 +395,50 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
   );
 };
 
-const CollegeManagement = () => {
-  const [colleges, setColleges] = useState([]);
+// Batch Chip Component
+const BatchChip = ({ batches }) => {
+  const count = batches?.length || 0;
+  
+  if (count === 0) {
+    return (
+      <Chip
+        label="No Batches"
+        size="small"
+        icon={<XCircle size={14} />}
+        sx={{
+          bgcolor: '#FEE2E2',
+          color: '#EF4444',
+          fontSize: '0.65rem',
+          fontWeight: 600,
+          height: 24,
+          '& .MuiChip-label': { px: 1.5 },
+          '& .MuiChip-icon': { color: '#EF4444', marginLeft: '6px' }
+        }}
+      />
+    );
+  }
+  
+  return (
+    <Chip
+      label={`${count} Batch${count > 1 ? 'es' : ''}`}
+      size="small"
+      icon={<CheckCircle size={14} />}
+      sx={{
+        bgcolor: '#D1FAE5',
+        color: '#10B981',
+        fontSize: '0.65rem',
+        fontWeight: 600,
+        height: 24,
+        '& .MuiChip-label': { px: 1.5 },
+        '& .MuiChip-icon': { color: '#10B981', marginLeft: '6px' }
+      }}
+    />
+  );
+};
+
+const Trainers = () => {
+  const [trainers, setTrainers] = useState([]);
+  const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -195,10 +461,27 @@ const CollegeManagement = () => {
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [selectedCollege, setSelectedCollege] = useState(null);
+  const [openAssignBatchDialog, setOpenAssignBatchDialog] = useState(false);
+  const [selectedTrainer, setSelectedTrainer] = useState(null);
 
-  // Load colleges from API with pagination and search
-  const loadCollegesFromAPI = useCallback(async () => {
+  // Load batches from API
+  const loadBatchesFromAPI = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/batches`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (response.data && response.data.data) {
+        setBatches(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error loading batches:', error);
+    }
+  }, []);
+
+  // Load trainers from API with pagination and search
+  const loadTrainersFromAPI = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -208,7 +491,7 @@ const CollegeManagement = () => {
         search: searchTerm
       };
       
-      const response = await axios.get(`${BASE_URL}/colleges`, {
+      const response = await axios.get(`${BASE_URL}/trainers`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -217,31 +500,29 @@ const CollegeManagement = () => {
 
       if (response.data && response.data.data) {
         // Transform API response to match component structure
-        const transformedColleges = response.data.data.map(college => ({
-          id: college.id,
-          name: college.name,
-          address: college.address,
-          city: college.city,
-          state: college.state,
-          pincode: college.pincode,
-          contact: college.contact_number,
-          email: college.email,
-          createdAt: college.created_at,
-          updatedAt: college.updated_at
+        const transformedTrainers = response.data.data.map(trainer => ({
+          id: trainer.id,
+          name: trainer.name,
+          mobile: trainer.mobile,
+          email: trainer.email,
+          address: trainer.address,
+          batches: trainer.batches || [],
+          createdAt: trainer.created_at,
+          updatedAt: trainer.updated_at
         }));
         
-        setColleges(transformedColleges);
+        setTrainers(transformedTrainers);
         setTotalCount(response.data.total || 0);
         setLastPage(response.data.last_page || 1);
       } else {
-        setColleges([]);
+        setTrainers([]);
         setTotalCount(0);
         setLastPage(1);
       }
     } catch (error) {
-      console.error('Error loading colleges:', error);
-      showNotification(error.response?.data?.message || 'Failed to load colleges', 'error');
-      setColleges([]);
+      console.error('Error loading trainers:', error);
+      showNotification(error.response?.data?.message || 'Failed to load trainers', 'error');
+      setTrainers([]);
       setTotalCount(0);
       setLastPage(1);
     } finally {
@@ -249,93 +530,72 @@ const CollegeManagement = () => {
     }
   }, [currentPage, rowsPerPage, searchTerm]);
 
-  // Load colleges when dependencies change
+  // Load data when dependencies change
   useEffect(() => {
-    loadCollegesFromAPI();
-  }, [loadCollegesFromAPI]);
+    loadTrainersFromAPI();
+    loadBatchesFromAPI();
+  }, [loadTrainersFromAPI, loadBatchesFromAPI]);
 
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(searchInput);
-      setCurrentPage(1); // Reset to first page when searching
-      setPage(0); // Reset pagination index
+      setCurrentPage(1);
+      setPage(0);
     }, 500);
 
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Handle add college
-  const handleAddCollege = (newCollege) => {
-    // Transform the API response to match component structure
-    const transformedCollege = {
-      id: newCollege.id,
-      name: newCollege.name,
-      address: newCollege.address,
-      city: newCollege.city,
-      state: newCollege.state,
-      pincode: newCollege.pincode,
-      contact: newCollege.contact_number,
-      email: newCollege.email,
-      createdAt: newCollege.created_at,
-      updatedAt: newCollege.updated_at
-    };
-    
-    // If on first page and current list is not full, add to current list
-    if (currentPage === 1 && colleges.length < rowsPerPage) {
-      setColleges(prev => [transformedCollege, ...prev]);
+  // Handle add trainer
+  const handleAddTrainer = (newTrainer) => {
+    loadTrainersFromAPI();
+    showNotification('Trainer added successfully!', 'success');
+  };
+
+  // Handle edit trainer
+  const handleEditTrainer = (updatedTrainer) => {
+    loadTrainersFromAPI();
+    showNotification('Trainer updated successfully!', 'success');
+  };
+
+  // Handle delete trainer
+  const handleDeleteTrainer = async (trainerId) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${BASE_URL}/trainers/${trainerId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      loadTrainersFromAPI();
+      showNotification('Trainer deleted successfully!', 'success');
+    } catch (error) {
+      console.error('Error deleting trainer:', error);
+      showNotification('Failed to delete trainer', 'error');
+    } finally {
+      setLoading(false);
     }
-    
-    // Refresh to get updated total count
-    loadCollegesFromAPI();
-    showNotification('College added successfully!', 'success');
   };
 
-  // Handle edit college
-  const handleEditCollege = (updatedCollege) => {
-    // Transform the API response to match component structure
-    const transformedCollege = {
-      id: updatedCollege.id,
-      name: updatedCollege.name,
-      address: updatedCollege.address,
-      city: updatedCollege.city,
-      state: updatedCollege.state,
-      pincode: updatedCollege.pincode,
-      contact: updatedCollege.contact_number,
-      email: updatedCollege.email,
-      createdAt: updatedCollege.created_at,
-      updatedAt: updatedCollege.updated_at
-    };
-    
-    // Update local state
-    setColleges(prev => prev.map(college => 
-      college.id === transformedCollege.id ? transformedCollege : college
-    ));
-    
-    showNotification('College updated successfully!', 'success');
-  };
-
-  // Handle delete college
-  const handleDeleteCollege = (collegeId) => {
-    // Remove from local state
-    setColleges(prev => prev.filter(college => college.id !== collegeId));
-    setSelected(prev => prev.filter(id => id !== collegeId));
-    
-    // Refresh to update pagination and total count
-    loadCollegesFromAPI();
-    showNotification('College deleted successfully!', 'success');
+  // Handle assign batch to trainer
+  const handleAssignBatch = (trainerId, assignedBatches) => {
+    loadTrainersFromAPI();
+    loadBatchesFromAPI();
+    showNotification('Batches updated successfully!', 'success');
   };
 
   // Handle refresh
   const handleRefresh = () => {
-    loadCollegesFromAPI();
+    loadTrainersFromAPI();
+    loadBatchesFromAPI();
     showNotification('Data refreshed successfully', 'success');
   };
 
   // Handle select all on current page
   const handleSelectAll = (event) => {
     if (event.target.checked) {
-      setSelected(colleges.map(college => college.id));
+      setSelected(trainers.map(trainer => trainer.id));
     } else {
       setSelected([]);
     }
@@ -362,31 +622,27 @@ const CollegeManagement = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Delete each selected college
       const deletePromises = selected.map(id => 
-        axios.delete(`${BASE_URL}/colleges/${id}`, {
+        axios.delete(`${BASE_URL}/trainers/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       );
       
       await Promise.all(deletePromises);
       
-      // Clear selection
       setSelected([]);
       
-      // Check if current page becomes empty and not first page
-      if (colleges.length === selected.length && currentPage > 1) {
+      if (trainers.length === selected.length && currentPage > 1) {
         setCurrentPage(prev => prev - 1);
         setPage(prev => prev - 1);
       } else {
-        // Refresh current page
-        loadCollegesFromAPI();
+        loadTrainersFromAPI();
       }
       
-      showNotification(`${selected.length} colleges deleted successfully`, 'success');
+      showNotification(`${selected.length} trainers deleted successfully`, 'success');
     } catch (error) {
-      console.error('Error bulk deleting colleges:', error);
-      showNotification('Failed to delete some colleges', 'error');
+      console.error('Error bulk deleting trainers:', error);
+      showNotification('Failed to delete some trainers', 'error');
     } finally {
       setLoading(false);
     }
@@ -396,7 +652,7 @@ const CollegeManagement = () => {
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
     setCurrentPage(newPage + 1);
-    setSelected([]); // Clear selection when changing page
+    setSelected([]);
   };
 
   // Handle rows per page change
@@ -424,9 +680,9 @@ const CollegeManagement = () => {
     return colors[charCode % colors.length];
   };
 
-  // Get college initials
-  const getCollegeInitials = (name) => {
-    if (!name) return 'C';
+  // Get trainer initials
+  const getTrainerInitials = (name) => {
+    if (!name) return 'T';
     const words = name.split(' ');
     if (words.length >= 2) {
       return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
@@ -448,10 +704,10 @@ const CollegeManagement = () => {
             mb: 0.5
           }}
         >
-          College Management
+          Trainer Management
         </Typography>
         <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
-          Manage and organize college information and details
+          Manage and organize trainer information
         </Typography>
       </Box>
 
@@ -468,7 +724,7 @@ const CollegeManagement = () => {
           {/* Search */}
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
             <TextField
-              placeholder="Search by college name, address, or contact..."
+              placeholder="Search by name, contact, or address..."
               size="small"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -586,13 +842,13 @@ const CollegeManagement = () => {
                 }
               }}
             >
-              Add College
+              Add Trainer
             </Button>
           </Stack>
         </Stack>
       </Paper>
 
-      {/* Colleges Table */}
+      {/* Trainers Table */}
       <Paper sx={{ 
         width: '100%', 
         borderRadius: 2, 
@@ -613,8 +869,8 @@ const CollegeManagement = () => {
               }}>
                 <TableCell padding="checkbox" sx={{ width: 40 }}>
                   <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < colleges.length}
-                    checked={colleges.length > 0 && selected.length === colleges.length}
+                    indeterminate={selected.length > 0 && selected.length < trainers.length}
+                    checked={trainers.length > 0 && selected.length === trainers.length}
                     onChange={handleSelectAll}
                     sx={{
                       color: COLORS.text.light,
@@ -636,7 +892,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  College Name
+                  Name
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -644,7 +900,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  Address
+                  Assigned Batches
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -653,6 +909,14 @@ const CollegeManagement = () => {
                   color: COLORS.text.light
                 }}>
                   Contact
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600, 
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.5px',
+                  color: COLORS.text.light
+                }}>
+                  Address
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -668,35 +932,36 @@ const CollegeManagement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
-                      Loading colleges...
+                      Loading trainers...
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : colleges.length === 0 ? (
+              ) : trainers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
-                      <BusinessIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
+                      <PeopleIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
-                        {searchTerm ? 'No colleges found' : 'No colleges available'}
+                        {searchTerm ? 'No trainers found' : 'No trainers available'}
                       </Typography>
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.tertiary, mt: 0.5 }}>
-                        {searchTerm ? 'Try adjusting your search terms' : 'Add your first college to get started'}
+                        {searchTerm ? 'Try adjusting your search terms' : 'Add your first trainer to get started'}
                       </Typography>
                     </Box>
                   </TableCell>
                 </TableRow>
               ) : (
-                colleges.map((college) => {
-                  const isSelected = selected.includes(college.id);
-                  const avatarColor = getAvatarColor(college.name);
+                trainers.map((trainer) => {
+                  const isSelected = selected.includes(trainer.id);
+                  const avatarColor = getAvatarColor(trainer.name);
+                  const batchCount = trainer.batches?.length || 0;
 
                   return (
                     <TableRow
-                      key={college.id}
+                      key={trainer.id}
                       hover
                       selected={isSelected}
                       sx={{ 
@@ -720,7 +985,7 @@ const CollegeManagement = () => {
                       <TableCell padding="checkbox" sx={{ width: 40 }}>
                         <Checkbox
                           checked={isSelected}
-                          onChange={() => handleSelect(college.id)}
+                          onChange={() => handleSelect(trainer.id)}
                           sx={{
                             color: COLORS.accent,
                             '&.Mui-checked': {
@@ -743,50 +1008,51 @@ const CollegeManagement = () => {
                               fontWeight: 600
                             }}
                           >
-                            {getCollegeInitials(college.name)}
+                            {getTrainerInitials(trainer.name)}
                           </Avatar>
                           <Box>
                             <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary }}>
-                              {college.name}
+                              {trainer.name}
                             </Typography>
-                            <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                              {college.city}, {college.state} - {college.pincode}
-                            </Typography>
+                            {trainer.email && (
+                              <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                                {trainer.email}
+                              </Typography>
+                            )}
                           </Box>
                         </Stack>
                       </TableCell>
                       <TableCell>
-                        <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                          {college.address}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                          {college.city}, {college.state} {college.pincode}
-                        </Typography>
+                        <BatchChip batches={trainer.batches} />
+                        {batchCount > 0 && (
+                          <Typography sx={{ fontSize: '0.6rem', color: COLORS.text.tertiary, mt: 0.5 }}>
+                            {trainer.batches.map(b => `Batch #${b.id}`).join(', ')}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Stack spacing={0.5}>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <PhoneIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
-                            <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                              {college.contact}
-                            </Typography>
-                          </Stack>
-                          {college.email && (
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              <EmailIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
-                              <Typography sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                                {college.email}
-                              </Typography>
-                            </Stack>
-                          )}
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <PhoneIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
+                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                            {trainer.mobile}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <LocationOnIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
+                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                            {trainer.address}
+                          </Typography>
                         </Stack>
                       </TableCell>
                       <TableCell align="center" sx={{ width: 60 }}>
                         <ActionMenu 
-                          college={college}
-                          onView={(c) => { setSelectedCollege(c); setOpenViewModal(true); }}
-                          onEdit={(c) => { setSelectedCollege(c); setOpenEditModal(true); }}
-                          onDelete={(c) => { setSelectedCollege(c); setOpenDeleteDialog(true); }}
+                          trainer={trainer}
+                          onView={(t) => { setSelectedTrainer(t); setOpenViewModal(true); }}
+                          onEdit={(t) => { setSelectedTrainer(t); setOpenEditModal(true); }}
+                          onDelete={(t) => { setSelectedTrainer(t); setOpenDeleteDialog(true); }}
+                          onAssignBatch={(t) => { setSelectedTrainer(t); setOpenAssignBatchDialog(true); }}
                         />
                       </TableCell>
                     </TableRow>
@@ -823,45 +1089,56 @@ const CollegeManagement = () => {
       </Paper>
 
       {/* Modal Components */}
-      <AddCollege 
+      <AddTrainer 
         open={openAddModal}
         onClose={() => setOpenAddModal(false)}
-        onAdd={handleAddCollege}
+        onAdd={handleAddTrainer}
       />
 
-      {selectedCollege && (
+      {selectedTrainer && (
         <>
-          <EditCollege 
+          <EditTrainer 
             open={openEditModal}
             onClose={() => {
               setOpenEditModal(false);
-              setSelectedCollege(null);
+              setSelectedTrainer(null);
             }}
-            college={selectedCollege}
-            onUpdate={handleEditCollege}
+            trainer={selectedTrainer}
+            onUpdate={handleEditTrainer}
           />
 
-          <ViewCollege 
+          <ViewTrainer 
             open={openViewModal}
             onClose={() => {
               setOpenViewModal(false);
-              setSelectedCollege(null);
+              setSelectedTrainer(null);
             }}
-            college={selectedCollege}
+            trainer={selectedTrainer}
             onEdit={() => {
               setOpenViewModal(false);
               setOpenEditModal(true);
             }}
           />
 
-          <DeleteCollege 
+          <DeleteTrainer 
             open={openDeleteDialog}
             onClose={() => {
               setOpenDeleteDialog(false);
-              setSelectedCollege(null);
+              setSelectedTrainer(null);
             }}
-            college={selectedCollege}
-            onDelete={handleDeleteCollege}
+            trainer={selectedTrainer}
+            onDelete={handleDeleteTrainer}
+          />
+
+          <AssignBatchDialog 
+            open={openAssignBatchDialog}
+            onClose={() => {
+              setOpenAssignBatchDialog(false);
+              setSelectedTrainer(null);
+            }}
+            trainer={selectedTrainer}
+            batches={batches}
+            onAssign={handleAssignBatch}
           />
         </>
       )}
@@ -894,4 +1171,4 @@ const CollegeManagement = () => {
   );
 };
 
-export default CollegeManagement;
+export default Trainers;

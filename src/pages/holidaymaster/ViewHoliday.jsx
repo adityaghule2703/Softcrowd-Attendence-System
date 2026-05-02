@@ -12,9 +12,9 @@ import {
   Divider
 } from '@mui/material';
 import {
-  Language as LanguageIcon,
-  Description as DescriptionIcon,
+  Celebration as CelebrationIcon,
   CalendarToday as CalendarIcon,
+  Description as DescriptionIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
 
@@ -35,7 +35,9 @@ const COLORS = {
   border: '#E2E8F0'
 };
 
-const ViewDomain = ({ open, onClose, domain, onEdit }) => {
+const ViewHoliday = ({ open, onClose, holiday, onEdit }) => {
+  if (!holiday) return null;
+
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -43,11 +45,22 @@ const ViewDomain = ({ open, onClose, domain, onEdit }) => {
     return date.toLocaleDateString('en-US', {
       year: 'numeric',
       month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
+      day: 'numeric'
     });
   };
+
+  const getStatus = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = new Date(holiday.start_date);
+    const end = new Date(holiday.end_date);
+    
+    if (today > end) return { label: 'Past', color: '#EF4444', bg: '#FEE2E2' };
+    if (today >= start && today <= end) return { label: 'Ongoing', color: '#F59E0B', bg: '#FEF3C7' };
+    return { label: 'Upcoming', color: '#10B981', bg: '#D1FAE5' };
+  };
+
+  const status = getStatus();
 
   return (
     <Dialog
@@ -81,10 +94,10 @@ const ViewDomain = ({ open, onClose, domain, onEdit }) => {
             color: COLORS.text.primary
           }}
         >
-          Domain Details
+          Holiday Details
         </Typography>
         <Chip
-          label={`ID: ${domain?.id || 'N/A'}`}
+          label={`ID: ${holiday?.id || 'N/A'}`}
           size="small"
           sx={{
             height: 24,
@@ -98,32 +111,81 @@ const ViewDomain = ({ open, onClose, domain, onEdit }) => {
 
       <DialogContent sx={{ p: 2.5 }}>
         <Stack spacing={2.5}>
-          {/* Domain Name */}
+          {/* Holiday Name */}
           <Box>
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
-              <LanguageIcon sx={{ fontSize: '1.25rem', color: COLORS.accent }} />
+              <CelebrationIcon sx={{ fontSize: '1.25rem', color: COLORS.accent }} />
               <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                DOMAIN NAME
+                HOLIDAY NAME
               </Typography>
             </Stack>
-            <Typography sx={{ 
-              fontSize: '0.875rem', 
-              fontWeight: 600, 
-              color: COLORS.text.primary,
-              ml: 3.5
-            }}>
-              {domain?.domainName || 'N/A'}
-            </Typography>
+            <Box sx={{ ml: 3.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Typography sx={{ 
+                fontSize: '0.875rem', 
+                fontWeight: 600, 
+                color: COLORS.text.primary
+              }}>
+                {holiday?.name || 'N/A'}
+              </Typography>
+              <Chip 
+                label={status.label} 
+                size="small" 
+                sx={{ 
+                  height: 22,
+                  fontSize: '0.6rem',
+                  fontWeight: 500,
+                  bgcolor: status.bg, 
+                  color: status.color 
+                }} 
+              />
+            </Box>
           </Box>
 
           <Divider sx={{ borderColor: COLORS.border }} />
 
-          {/* Description */}
+          {/* Date Range */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <CalendarIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  START DATE
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {formatDate(holiday?.start_date)}
+              </Typography>
+            </Box>
+
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <CalendarIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  END DATE
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {formatDate(holiday?.end_date)}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Divider sx={{ borderColor: COLORS.border }} />
+
+          {/* Note / Notification Message */}
           <Box>
             <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
               <DescriptionIcon sx={{ fontSize: '1.25rem', color: COLORS.accent }} />
               <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                DESCRIPTION
+                NOTE / NOTIFICATION MESSAGE
               </Typography>
             </Stack>
             <Typography sx={{ 
@@ -133,46 +195,31 @@ const ViewDomain = ({ open, onClose, domain, onEdit }) => {
               lineHeight: 1.5,
               whiteSpace: 'pre-wrap'
             }}>
-              {domain?.description || 'No description provided'}
+              {holiday?.note || 'No notes added'}
             </Typography>
           </Box>
 
-          <Divider sx={{ borderColor: COLORS.border }} />
-
-          {/* Timestamps */}
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
-            <Box sx={{ flex: 1 }}>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
-                <CalendarIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
-                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
-                  CREATED AT
+          {/* Optional: Display Status if needed */}
+          {holiday?.status && (
+            <>
+              <Divider sx={{ borderColor: COLORS.border }} />
+              <Box>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                    STATUS
+                  </Typography>
+                </Stack>
+                <Typography sx={{ 
+                  fontSize: '0.75rem', 
+                  color: COLORS.text.secondary,
+                  ml: 3.5,
+                  lineHeight: 1.5
+                }}>
+                  {holiday?.status || 'N/A'}
                 </Typography>
-              </Stack>
-              <Typography sx={{ 
-                fontSize: '0.7rem', 
-                color: COLORS.text.secondary,
-                ml: 3.5
-              }}>
-                {formatDate(domain?.createdAt)}
-              </Typography>
-            </Box>
-
-            <Box sx={{ flex: 1 }}>
-              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
-                <CalendarIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
-                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
-                  LAST UPDATED
-                </Typography>
-              </Stack>
-              <Typography sx={{ 
-                fontSize: '0.7rem', 
-                color: COLORS.text.secondary,
-                ml: 3.5
-              }}>
-                {formatDate(domain?.updatedAt)}
-              </Typography>
-            </Box>
-          </Stack>
+              </Box>
+            </>
+          )}
         </Stack>
       </DialogContent>
 
@@ -182,7 +229,7 @@ const ViewDomain = ({ open, onClose, domain, onEdit }) => {
         borderTop: `1px solid ${COLORS.border}`,
         bgcolor: COLORS.background.white,
         display: 'flex',
-        justifyContent: 'flex-end',
+        justifyContent: 'space-between',
         gap: 1
       }}>
         <Button
@@ -210,4 +257,4 @@ const ViewDomain = ({ open, onClose, domain, onEdit }) => {
   );
 };
 
-export default ViewDomain;
+export default ViewHoliday;

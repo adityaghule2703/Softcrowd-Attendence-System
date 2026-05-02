@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import {
-  Box,
-  Paper,
-  Grid,
-  TextField,
-  Typography,
-  Button,
-  Stack,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
+  Button,
+  TextField,
+  Stack,
   Alert,
-  Chip
+  Typography,
+  Box
 } from '@mui/material';
 import { Edit as EditIcon } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Color constants
 const COLORS = {
@@ -24,44 +23,41 @@ const COLORS = {
   text: {
     primary: '#1E293B',
     secondary: '#64748B',
-    tertiary: '#94A3B8'
+    tertiary: '#94A3B8',
+    light: '#FFFFFF',
+    lightMuted: 'rgba(255, 255, 255, 0.9)'
   },
   background: {
     white: '#FFFFFF',
-    light: '#F8FAFC'
+    light: '#F8FAFC',
+    hover: '#F1F5F9',
+    tableHeader: '#0F172A'
   },
-  border: '#E2E8F0',
-  error: '#EF4444'
+  border: '#E2E8F0'
 };
 
 const EditDomain = ({ open, onClose, domain, onUpdate }) => {
   const [domainName, setDomainName] = useState('');
-  const [fieldError, setFieldError] = useState('');
+  const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (domain) {
       setDomainName(domain.domainName || '');
+      setDescription(domain.description || '');
     }
   }, [domain]);
 
-  const handleChange = (e) => {
-    setDomainName(e.target.value);
-    setFieldError('');
-  };
-
-  const validateField = () => {
-    if (!domainName?.trim()) {
-      setFieldError('Domain name is required');
-      return false;
-    }
-    return true;
-  };
-
   const handleSubmit = async () => {
-    if (!validateField()) {
-      setError('Please fix the validation error');
+    // Validation
+    if (!domainName.trim()) {
+      setError('Domain name is required');
+      return;
+    }
+
+    if (!description.trim()) {
+      setError('Description is required');
       return;
     }
 
@@ -69,52 +65,42 @@ const EditDomain = ({ open, onClose, domain, onUpdate }) => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      onUpdate({ ...domain, domainName });
-      onClose();
+      const token = localStorage.getItem('token');
+      const response = await axios.put(`${BASE_URL}/domains/${domain.id}`, {
+        name: domainName.trim(),
+        description: description.trim()
+      }, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Check if response has data (successful response)
+      if (response.data && response.data.data) {
+        // Call onUpdate and pass the data
+        onUpdate(response.data.data);
+        onClose();
+      } else {
+        setError(response.data.message || 'Failed to update domain');
+      }
     } catch (err) {
-      setError('Failed to update domain. Please try again.');
+      console.error('Error updating domain:', err);
+      setError(err.response?.data?.message || 'Failed to update domain. Please try again.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleClose = () => {
-    setFieldError('');
-    setError('');
-    onClose();
-  };
-
-  // TextField styling
-  const textFieldSx = {
-    '& .MuiOutlinedInput-root': {
-      borderRadius: 1.5,
-      fontSize: '0.75rem',
-      '&:hover fieldset': { borderColor: COLORS.accent },
-      '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 },
-      '&.Mui-error fieldset': { borderColor: COLORS.error }
-    },
-    '& .MuiInputBase-input': {
-      py: 1,
-      px: 1.5,
-      fontSize: '0.75rem',
-      color: COLORS.text.primary,
-      '&::placeholder': {
-        color: COLORS.text.tertiary,
-        fontSize: '0.75rem'
-      }
     }
   };
 
   return (
     <Dialog
       open={open}
-      onClose={handleClose}
+      onClose={onClose}
       maxWidth="sm"
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 2,
+          borderRadius: 5,
           boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
           border: `1px solid ${COLORS.border}`,
           overflow: 'hidden'
@@ -131,71 +117,131 @@ const EditDomain = ({ open, onClose, domain, onUpdate }) => {
         justifyContent: 'space-between',
         alignItems: 'center'
       }}>
-        <Typography sx={{ fontSize: '1.2rem', fontWeight: 700, color: COLORS.text.primary }}>
+        <Typography
+          sx={{
+            fontSize: '1.2rem',
+            fontWeight: 700,
+            color: COLORS.text.primary
+          }}
+        >
           Edit Domain
         </Typography>
-        {domain?.id && (
-          <Chip
-            label={`ID: ${domain.id}`}
-            size="small"
-            sx={{ 
-              fontSize: '0.65rem',
-              fontWeight: 500,
-              height: 20,
-              bgcolor: COLORS.background.light,
-              color: COLORS.text.secondary
-            }}
-          />
-        )}
       </DialogTitle>
 
-      <DialogContent sx={{ p: 2.5, bgcolor: COLORS.background.white }}>
+      <DialogContent sx={{ p: 2.5 }}>
         <Stack spacing={2}>
-          <Paper sx={{ 
-            p: 2, 
-            bgcolor: COLORS.background.white, 
-            borderRadius: 1.5, 
-            border: `1px solid ${COLORS.border}`,
-            boxShadow: 'none'
-          }}>
-            <Typography sx={{ 
-              fontSize: '0.8rem', 
-              fontWeight: 600, 
-              color: COLORS.accent, 
-              mb: 1.5 
-            }}>
-              Domain Information
-            </Typography>
-            
-            <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    DOMAIN NAME <span style={{ color: COLORS.error }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="domainName"
-                    value={domainName}
-                    onChange={handleChange}
-                    disabled={loading}
-                    placeholder="e.g., Technology, Engineering, Medical"
-                    error={!!fieldError}
-                    helperText={fieldError}
-                    sx={textFieldSx}
-                  />
-                </Box>
-              </Grid>
-            </Grid>
-          </Paper>
+          <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1.5 }}>
+            {/* Domain Name Field */}
+            <Box sx={{ gridColumn: 'span 2' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography
+                  sx={{
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    color: COLORS.text.secondary,
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  DOMAIN NAME <span style={{ color: '#EF4444' }}>*</span>
+                </Typography>
+                <TextField
+                  fullWidth
+                  name="domainName"
+                  value={domainName}
+                  onChange={(e) => setDomainName(e.target.value)}
+                  disabled={loading}
+                  placeholder="e.g., Technology, Engineering, Medical"
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 1.5,
+                      fontSize: '0.75rem',
+                      '&:hover fieldset': {
+                        borderColor: COLORS.primary,
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: COLORS.primary,
+                        borderWidth: 1
+                      }
+                    },
+                    '& .MuiInputBase-input': {
+                      py: 1,
+                      px: 1.5,
+                      fontSize: '0.75rem',
+                      color: COLORS.text.primary,
+                      '&::placeholder': {
+                        color: COLORS.text.tertiary,
+                        fontSize: '0.75rem'
+                      }
+                    }
+                  }}
+                />
+              </Box>
+            </Box>
+
+            {/* Description Field */}
+            <Box sx={{ gridColumn: 'span 2' }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                <Typography
+                  sx={{
+                    fontSize: '0.7rem',
+                    fontWeight: 600,
+                    color: COLORS.text.secondary,
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  DESCRIPTION <span style={{ color: '#EF4444' }}>*</span>
+                </Typography>
+                <TextField
+                  fullWidth
+                  name="description"
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  multiline
+                  rows={3}
+                  disabled={loading}
+                  placeholder="Enter domain description"
+                  size="small"
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 1.5,
+                      fontSize: '0.75rem',
+                      '&:hover fieldset': {
+                        borderColor: COLORS.primary,
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: COLORS.primary,
+                        borderWidth: 1
+                      }
+                    },
+                    '& .MuiInputBase-input': {
+                      py: 1,
+                      px: 1.5,
+                      fontSize: '0.75rem',
+                      color: COLORS.text.primary,
+                      '&::placeholder': {
+                        color: COLORS.text.tertiary,
+                        fontSize: '0.75rem'
+                      }
+                    }
+                  }}
+                />
+              </Box>
+            </Box>
+          </Box>
 
           {error && (
-            <Alert 
-              severity="error" 
-              sx={{ 
-                mt: 2, 
+            <Alert
+              severity="error"
+              sx={{
                 borderRadius: 1.5,
+                mt: 1,
+                '& .MuiAlert-icon': {
+                  fontSize: '1.25rem',
+                  alignItems: 'center'
+                },
                 fontSize: '0.75rem',
                 py: 0.5
               }}
@@ -211,12 +257,13 @@ const EditDomain = ({ open, onClose, domain, onUpdate }) => {
         py: 1.5,
         borderTop: `1px solid ${COLORS.border}`,
         bgcolor: COLORS.background.white,
-        justifyContent: 'flex-end'
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: 1
       }}>
         <Button
-          onClick={handleClose}
+          onClick={onClose}
           disabled={loading}
-          size="small"
           sx={{
             height: 32,
             px: 2,
@@ -227,8 +274,8 @@ const EditDomain = ({ open, onClose, domain, onUpdate }) => {
             fontWeight: 500,
             textTransform: 'none',
             '&:hover': {
-              borderColor: COLORS.accent,
-              bgcolor: `${COLORS.accent}10`
+              borderColor: COLORS.primary,
+              bgcolor: `${COLORS.primary}10`
             }
           }}
         >
@@ -237,9 +284,8 @@ const EditDomain = ({ open, onClose, domain, onUpdate }) => {
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={loading}
-          size="small"
-          startIcon={<EditIcon sx={{ fontSize: '1rem' }} />}
+          disabled={loading || !domainName || !description}
+          startIcon={loading ? null : <EditIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 32,
             px: 2,
@@ -251,6 +297,10 @@ const EditDomain = ({ open, onClose, domain, onUpdate }) => {
             boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
             '&:hover': {
               bgcolor: COLORS.primaryDark,
+            },
+            '&:disabled': {
+              bgcolor: COLORS.border,
+              color: COLORS.text.tertiary
             }
           }}
         >

@@ -56,10 +56,28 @@ const ViewDepartment = ({ open, onClose, department, onEdit }) => {
         {icon}
       </Box>
       <Box>
-        <Typography variant="caption" sx={{ color: COLORS.text.secondary, display: 'block', fontSize: '10px', fontWeight: 500, mb: 0.2 }}>
+        <Typography 
+          variant="caption" 
+          sx={{ 
+            color: COLORS.text.secondary, 
+            display: 'block', 
+            fontSize: '10px', 
+            fontWeight: 500, 
+            mb: 0.2,
+            letterSpacing: '0.5px'
+          }}
+        >
           {label}
         </Typography>
-        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '13px', color: COLORS.text.primary, wordBreak: 'break-word' }}>
+        <Typography 
+          variant="body2" 
+          sx={{ 
+            fontWeight: 600, 
+            fontSize: '13px', 
+            color: COLORS.text.primary, 
+            wordBreak: 'break-word' 
+          }}
+        >
           {value || '-'}
         </Typography>
       </Box>
@@ -67,44 +85,113 @@ const ViewDepartment = ({ open, onClose, department, onEdit }) => {
   );
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <Box sx={{ background: COLORS.primary, py: 1, px: 2 }}>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="md" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+          border: `1px solid ${COLORS.border}`,
+          overflow: 'hidden'
+        }
+      }}
+    >
+      {/* Header */}
+      <Box sx={{ 
+        background: COLORS.primary, 
+        py: 1.5, 
+        px: 2.5
+      }}>
         <Stack direction="row" justifyContent="space-between" alignItems="center">
           <Stack direction="row" alignItems="center" spacing={1}>
-            <BusinessIcon sx={{ color: COLORS.text.light, fontSize: 18 }} />
-            <Typography variant="subtitle2" sx={{ fontWeight: 600, color: COLORS.text.light, fontSize: '0.9rem' }}>
+            <SchoolIcon sx={{ color: COLORS.text.light, fontSize: 18 }} />
+            <Typography 
+              variant="subtitle2" 
+              sx={{ 
+                fontWeight: 600, 
+                color: COLORS.text.light, 
+                fontSize: '0.9rem',
+                letterSpacing: '0.5px'
+              }}
+            >
               Department Details
             </Typography>
           </Stack>
-          <Chip label={`ID: ${department.id}`} size="small" sx={{ bgcolor: 'rgba(255,255,255,0.2)', color: COLORS.text.light, fontSize: '10px', height: '20px' }} />
+          <Chip 
+            label={`ID: ${department.id}`} 
+            size="small" 
+            sx={{ 
+              bgcolor: 'rgba(255,255,255,0.15)', 
+              color: COLORS.text.light, 
+              fontSize: '10px', 
+              height: '22px',
+              '& .MuiChip-label': {
+                px: 1.5
+              }
+            }} 
+          />
         </Stack>
       </Box>
 
-      <DialogContent sx={{ p: 2.5 }}>
+      <DialogContent sx={{ p: 2.5, bgcolor: COLORS.background.light }}>
         <Stack spacing={2}>
           {/* Department Profile */}
-          <Paper sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
+          <Paper sx={{ 
+            p: 2.5, 
+            borderRadius: 2, 
+            border: `1px solid ${COLORS.border}`,
+            bgcolor: COLORS.background.white
+          }}>
             <Stack direction="row" spacing={3} alignItems="center" sx={{ mb: 2 }}>
-              <Avatar sx={{ width: 70, height: 70, bgcolor: COLORS.accent, fontSize: '1.5rem', fontWeight: 600 }}>
+              <Avatar 
+                sx={{ 
+                  width: 80, 
+                  height: 80, 
+                  bgcolor: COLORS.accent, 
+                  fontSize: '1.8rem', 
+                  fontWeight: 600,
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                }}
+              >
                 {getDepartmentInitials(department.departmentName)}
               </Avatar>
               <Box>
-                <Typography variant="h6" fontWeight={600} color={COLORS.text.primary} sx={{ fontSize: '1.1rem' }}>
+                <Typography 
+                  variant="h6" 
+                  fontWeight={700} 
+                  color={COLORS.text.primary} 
+                  sx={{ fontSize: '1.2rem', mb: 0.5 }}
+                >
                   {department.departmentName}
                 </Typography>
-                <Typography variant="body2" color={COLORS.text.secondary} sx={{ fontSize: '12px' }}>
-                  {department.collegeName}
-                </Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <BusinessIcon sx={{ fontSize: 14, color: COLORS.text.tertiary }} />
+                  <Typography variant="body2" color={COLORS.text.secondary} sx={{ fontSize: '12px' }}>
+                    {department.collegeName}
+                  </Typography>
+                </Stack>
               </Box>
             </Stack>
 
-            <Divider sx={{ my: 1.5 }} />
+            <Divider sx={{ my: 2 }} />
 
-            <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1.5, fontWeight: 600, fontSize: '0.8rem' }}>
+            <Typography 
+              variant="subtitle2" 
+              sx={{ 
+                color: COLORS.accent, 
+                mb: 2, 
+                fontWeight: 600, 
+                fontSize: '0.8rem',
+                letterSpacing: '0.5px'
+              }}
+            >
               Coordinator Information
             </Typography>
             
-            <Grid container spacing={1.5}>
+            <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
                 {renderField(<PersonIcon sx={{ fontSize: 16 }} />, 'Coordinator Name', department.coordinatorName)}
               </Grid>
@@ -115,15 +202,104 @@ const ViewDepartment = ({ open, onClose, department, onEdit }) => {
                 {renderField(<EmailIcon sx={{ fontSize: 16 }} />, 'Email Address', department.coordinatorEmail || 'Not provided')}
               </Grid>
             </Grid>
+
+            {/* Metadata Information */}
+            {(department.createdAt || department.updatedAt) && (
+              <>
+                <Divider sx={{ my: 2 }} />
+                <Typography 
+                  variant="subtitle2" 
+                  sx={{ 
+                    color: COLORS.accent, 
+                    mb: 2, 
+                    fontWeight: 600, 
+                    fontSize: '0.8rem',
+                    letterSpacing: '0.5px'
+                  }}
+                >
+                  Additional Information
+                </Typography>
+                <Grid container spacing={2}>
+                  {department.createdAt && (
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="caption" sx={{ color: COLORS.text.secondary, fontSize: '10px', fontWeight: 500, display: 'block', mb: 0.2 }}>
+                        CREATED AT
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '12px', color: COLORS.text.primary }}>
+                        {new Date(department.createdAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </Typography>
+                    </Grid>
+                  )}
+                  {department.updatedAt && (
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <Typography variant="caption" sx={{ color: COLORS.text.secondary, fontSize: '10px', fontWeight: 500, display: 'block', mb: 0.2 }}>
+                        LAST UPDATED
+                      </Typography>
+                      <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '12px', color: COLORS.text.primary }}>
+                        {new Date(department.updatedAt).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric'
+                        })}
+                      </Typography>
+                    </Grid>
+                  )}
+                </Grid>
+              </>
+            )}
           </Paper>
         </Stack>
       </DialogContent>
 
-      <Box sx={{ px: 2, py: 1, borderTop: `1px solid ${COLORS.border}`, backgroundColor: COLORS.background.light, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Button onClick={onClose} startIcon={<CloseIcon />} size="small" sx={{ color: COLORS.text.secondary, fontSize: '0.8rem' }}>
+      {/* Footer Actions */}
+      <Box sx={{ 
+        px: 2.5, 
+        py: 1.5, 
+        borderTop: `1px solid ${COLORS.border}`, 
+        backgroundColor: COLORS.background.white,
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center'
+      }}>
+        <Button 
+          onClick={onClose} 
+          startIcon={<CloseIcon sx={{ fontSize: '1rem' }} />} 
+          size="small" 
+          sx={{ 
+            color: COLORS.text.secondary, 
+            fontSize: '0.75rem',
+            textTransform: 'none',
+            fontWeight: 500,
+            '&:hover': {
+              bgcolor: `${COLORS.accent}10`
+            }
+          }}
+        >
           Close
         </Button>
-        <Button variant="contained" onClick={() => { onClose(); if (onEdit) onEdit(department); }} size="small" startIcon={<EditIcon />} sx={{ backgroundColor: COLORS.accent, fontSize: '0.8rem', '&:hover': { backgroundColor: COLORS.primary } }}>
+        <Button 
+          variant="contained" 
+          onClick={() => { 
+            onClose(); 
+            if (onEdit) onEdit(department); 
+          }} 
+          size="small" 
+          startIcon={<EditIcon sx={{ fontSize: '1rem' }} />} 
+          sx={{ 
+            backgroundColor: COLORS.accent, 
+            fontSize: '0.75rem',
+            textTransform: 'none',
+            fontWeight: 500,
+            px: 2,
+            '&:hover': { 
+              backgroundColor: COLORS.primary 
+            }
+          }}
+        >
           Edit Department
         </Button>
       </Box>

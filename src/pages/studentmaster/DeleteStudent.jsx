@@ -9,9 +9,12 @@ import {
   Alert,
   Stack,
   Avatar,
-  Box
+  Box,
+  CircularProgress
 } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 const COLORS = {
   primary: '#0F172A',
@@ -43,25 +46,63 @@ const DeleteStudent = ({ open, onClose, student, onDelete }) => {
   };
 
   const handleDelete = async () => {
-    if (!student?.id) return;
+    if (!student?.id) {
+      setError('Invalid student data');
+      return;
+    }
 
     setLoading(true);
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      onDelete(student.id);
-      onClose();
+      const token = localStorage.getItem('token');
+      const response = await axios.delete(`${BASE_URL}/students/${student.id}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      // Check if delete was successful (status 200, 201, 204)
+      if (response.status === 200 || response.status === 201 || response.status === 204) {
+        // Call the onDelete callback with the student ID
+        onDelete(student.id);
+        onClose();
+      } else {
+        throw new Error('Failed to delete student');
+      }
     } catch (err) {
-      setError('Failed to delete student. Please try again.');
+      console.error('Error deleting student:', err);
+      const errorMessage = err.response?.data?.message || 
+                          err.response?.data?.error ||
+                          'Failed to delete student. Please try again.';
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ borderBottom: `1px solid ${COLORS.border}`, pb: 2, backgroundColor: COLORS.background.light }}>
+    <Dialog 
+      open={open} 
+      onClose={onClose} 
+      maxWidth="sm" 
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+          border: `1px solid ${COLORS.border}`,
+          overflow: 'hidden'
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        borderBottom: `1px solid ${COLORS.border}`, 
+        pb: 2, 
+        mb: 2,
+        backgroundColor: COLORS.background.light
+      }}>
         <Typography sx={{ fontSize: '1.1rem', fontWeight: 600, color: COLORS.text.primary }}>
           Confirm Delete
         </Typography>
@@ -70,7 +111,13 @@ const DeleteStudent = ({ open, onClose, student, onDelete }) => {
       <DialogContent sx={{ pt: 3 }}>
         <Stack spacing={2} sx={{ mb: 3 }}>
           <Stack direction="row" spacing={2} alignItems="center">
-            <Avatar sx={{ width: 60, height: 60, bgcolor: COLORS.accent, fontSize: '1.25rem' }}>
+            <Avatar sx={{ 
+              width: 60, 
+              height: 60, 
+              bgcolor: COLORS.accent, 
+              fontSize: '1.25rem',
+              fontWeight: 600
+            }}>
               {getStudentInitials(student?.name)}
             </Avatar>
             <Box>
@@ -78,7 +125,7 @@ const DeleteStudent = ({ open, onClose, student, onDelete }) => {
                 {student?.name}
               </Typography>
               <Typography variant="body2" color={COLORS.text.secondary}>
-                {student?.mobile}
+                📱 {student?.mobile}
               </Typography>
             </Box>
           </Stack>
@@ -90,6 +137,11 @@ const DeleteStudent = ({ open, onClose, student, onDelete }) => {
             <Typography variant="body2">
               <strong>Department:</strong> {student?.departmentName}
             </Typography>
+            {student?.batches && student.batches.length > 0 && (
+              <Typography variant="body2">
+                <strong>Assigned Batches:</strong> {student.batches.length}
+              </Typography>
+            )}
           </Stack>
         </Stack>
         
@@ -100,12 +152,59 @@ const DeleteStudent = ({ open, onClose, student, onDelete }) => {
           ⚠️ This action cannot be undone. All student records will be permanently deleted.
         </Typography>
         
-        {error && <Alert severity="error" sx={{ mt: 3, borderRadius: 1 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mt: 3, borderRadius: 1.5, fontSize: '0.75rem' }}>
+            {error}
+          </Alert>
+        )}
       </DialogContent>
       
-      <DialogActions sx={{ px: 3, pb: 3, borderTop: `1px solid ${COLORS.border}`, pt: 2, backgroundColor: COLORS.background.light }}>
-        <Button onClick={onClose} disabled={loading}>Cancel</Button>
-        <Button variant="contained" color="error" onClick={handleDelete} disabled={loading} startIcon={loading ? null : <DeleteIcon />}>
+      <DialogActions sx={{ 
+        px: 3, 
+        pb: 3, 
+        borderTop: `1px solid ${COLORS.border}`, 
+        pt: 2, 
+        backgroundColor: COLORS.background.light
+      }}>
+        <Button 
+          onClick={onClose} 
+          disabled={loading}
+          sx={{
+            borderRadius: 1.5,
+            px: 3,
+            py: 1,
+            textTransform: 'none',
+            fontWeight: 500,
+            fontSize: '0.75rem',
+            border: `1px solid ${COLORS.border}`,
+            color: COLORS.text.secondary,
+            '&:hover': {
+              borderColor: COLORS.accent,
+              bgcolor: `${COLORS.accent}10`
+            }
+          }}
+        >
+          Cancel
+        </Button>
+        <Button 
+          variant="contained" 
+          color="error" 
+          onClick={handleDelete} 
+          disabled={loading} 
+          startIcon={loading ? <CircularProgress size={16} /> : <DeleteIcon />}
+          sx={{
+            borderRadius: 1.5,
+            px: 3,
+            py: 1,
+            textTransform: 'none',
+            fontWeight: 500,
+            fontSize: '0.75rem',
+            backgroundColor: COLORS.error,
+            '&:hover': {
+              backgroundColor: '#DC2626'
+            }
+          }}
+        >
           {loading ? 'Deleting...' : 'Delete Student'}
         </Button>
       </DialogActions>

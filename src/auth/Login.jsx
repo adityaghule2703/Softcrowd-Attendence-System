@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Lock, Sparkles, Eye, EyeOff, LogIn, Phone } from "lucide-react";
+import BASE_URL from "../config/Config";
+
 
 const Login = () => {
   const navigate = useNavigate();
@@ -20,50 +22,6 @@ const Login = () => {
       navigate("/");
     }
   }, [navigate]);
-
-  // Demo users data
-  const demoUsers = [
-    {
-      id: 1,
-      mobile: "9876543210",
-      password: "admin123",
-      name: "Admin User",
-      email: "admin@softcrowd.com",
-      role: "Administrator",
-      isSuperAdmin: true,
-      permissions: []
-    },
-    {
-      id: 2,
-      mobile: "9876543211",
-      password: "manager123",
-      name: "Manager User",
-      email: "manager@softcrowd.com",
-      role: "Manager",
-      isSuperAdmin: false,
-      permissions: []
-    },
-    {
-      id: 3,
-      mobile: "9876543212",
-      password: "trainer123",
-      name: "Trainer User",
-      email: "trainer@softcrowd.com",
-      role: "Trainer",
-      isSuperAdmin: false,
-      permissions: []
-    },
-    {
-      id: 4,
-      mobile: "9876543213",
-      password: "user123",
-      name: "Regular User",
-      email: "user@softcrowd.com",
-      role: "User",
-      isSuperAdmin: false,
-      permissions: []
-    }
-  ];
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -86,45 +44,41 @@ const Login = () => {
     }
 
     try {
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const response = await fetch(`${BASE_URL}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: JSON.stringify({
+          mobile: mobile,
+          password: password,
+        }),
+      });
 
-      // Find user by mobile number
-      const user = demoUsers.find(u => u.mobile === mobile);
+      const data = await response.json();
 
-      if (!user) {
-        setError("User not found. Please check your mobile number.");
-        setLoading(false);
-        return;
+      if (response.ok && data.status === true) {
+        // Store user data in localStorage
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("userRole", data.role);
+        localStorage.setItem("userId", data.user.id);
+        localStorage.setItem("userName", data.user.name);
+        localStorage.setItem("userMobile", data.user.mobile);
+        localStorage.setItem("userData", JSON.stringify(data.user));
+
+        setSuccess(data.message || "Login successful! Redirecting...");
+
+        setTimeout(() => {
+          navigate("/");
+        }, 1000);
+      } else {
+        setError(data.message || "Login failed. Please check your credentials.");
       }
-
-      // Check password
-      if (user.password !== password) {
-        setError("Invalid password. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      // Store user data in localStorage
-      localStorage.setItem("token", `mock-token-${user.id}`);
-      localStorage.setItem("refreshToken", `mock-refresh-${user.id}`);
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userEmail", user.email);
-      localStorage.setItem("userMobile", user.mobile);
-      localStorage.setItem("userName", user.name);
-      localStorage.setItem("userRole", user.role);
-      localStorage.setItem("userId", user.id);
-      localStorage.setItem("isSuperAdmin", user.isSuperAdmin);
-      localStorage.setItem("userData", JSON.stringify(user));
-      localStorage.setItem("userPermissions", JSON.stringify(user.permissions));
-
-      setSuccess("Login successful! Redirecting...");
-
-      setTimeout(() => {
-        navigate("/");
-      }, 1000);
     } catch (err) {
-      setError("Login failed. Please check your credentials and try again.");
+      console.error("Login error:", err);
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -194,17 +148,6 @@ const Login = () => {
             <p className="text-xl text-gray-400 max-w-xl leading-relaxed mb-8">
               Your journey to seamless enterprise management starts here
             </p>
-
-            {/* Demo Credentials */}
-            {/* <div className="bg-white/5 backdrop-blur-sm rounded-xl p-4 border border-white/10 max-w-md">
-              <p className="text-white text-sm font-semibold mb-2">Demo Credentials:</p>
-              <div className="space-y-1 text-xs text-gray-400">
-                <p>📱 9876543210 / admin123 (Admin)</p>
-                <p>📱 9876543211 / manager123 (Manager)</p>
-                <p>📱 9876543212 / trainer123 (Trainer)</p>
-                <p>📱 9876543213 / user123 (User)</p>
-              </div>
-            </div> */}
 
             {/* Stats */}
             <div className="flex justify-start gap-8 mt-8">
@@ -435,9 +378,6 @@ const Login = () => {
 
                 {/* Demo Credentials - Mobile */}
                 <div className="mt-4 pt-3 border-t border-gray-800">
-                  <p className="text-center text-[10px] text-gray-500">
-                    Demo: 9876543210 / admin123
-                  </p>
                   <p className="text-center text-[10px] text-gray-500 mt-1">
                     Design and Developed by Softcrowd Technologies
                   </p>

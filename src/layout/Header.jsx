@@ -1,13 +1,17 @@
 import React, { useState, useRef, useEffect } from "react";
 import { Bell, Settings, User, ChevronDown, Search, Menu, X } from "lucide-react";
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const Header = ({ onMenuClick }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
+  const navigate = useNavigate();
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -28,6 +32,58 @@ const Header = ({ onMenuClick }) => {
     { id: 2, title: "Monthly report ready", time: "1 hour ago", read: false },
     { id: 3, title: "System update completed", time: "3 hours ago", read: true },
   ];
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        // If no token, just redirect to login
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+        return;
+      }
+
+      const response = await axios.post(
+        'http://192.168.1.21:8000/api/logout',
+        {},
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (response.data && response.data.status === 'success') {
+        // Clear local storage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Redirect to login page
+        navigate('/login');
+      } else {
+        // Even if API returns error, clear local storage and redirect
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        navigate('/login');
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      
+      // Clear local storage even if API call fails
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
+      // Redirect to login page
+      navigate('/login');
+    } finally {
+      setIsLoggingOut(false);
+      setIsProfileOpen(false);
+    }
+  };
 
   return (
     <>
@@ -118,7 +174,7 @@ const Header = ({ onMenuClick }) => {
                 style={{ borderColor: '#E2E8F0' }}
               >
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-bold" style={{ color: '#1A1A2E' }}>Eleanor</p>
+                  <p className="text-sm font-bold" style={{ color: '#1A1A2E' }}>Aditya</p>
                   <p className="text-[10px]" style={{ color: '#00AEED' }}>Pro Member</p>
                 </div>
                 <div className="relative group">
@@ -138,18 +194,37 @@ const Header = ({ onMenuClick }) => {
                         <User className="w-4 h-4 text-white" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold" style={{ color: '#424347' }}>Eleanor Vance</p>
-                        <p className="text-xs" style={{ color: '#6B7280' }}>eleanor@softcrowd.com</p>
+                        <p className="text-sm font-semibold" style={{ color: '#424347' }}>Aditya Ghule</p>
+                        <p className="text-xs" style={{ color: '#6B7280' }}>adityaghule2703@gmail.com</p>
                       </div>
                     </div>
                   </div>
                   <div className="py-2">
-                    <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors" style={{ color: '#424347' }}>My Profile</button>
-                    <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors" style={{ color: '#424347' }}>Account Settings</button>
-                    <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors" style={{ color: '#424347' }}>Billing</button>
+                    <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors" style={{ color: '#424347' }}>
+                      My Profile
+                    </button>
+                    <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors" style={{ color: '#424347' }}>
+                      Account Settings
+                    </button>
+                    <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors" style={{ color: '#424347' }}>
+                      Billing
+                    </button>
                   </div>
                   <div className="border-t py-2" style={{ borderColor: '#E5E7EB' }}>
-                    <button className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors text-red-600">Logout</button>
+                    <button 
+                      onClick={handleLogout}
+                      disabled={isLoggingOut}
+                      className="w-full px-4 py-2 text-sm text-left hover:bg-gray-50 transition-colors flex items-center justify-between"
+                      style={{ color: '#EF4444' }}
+                    >
+                      {isLoggingOut ? 'Logging out...' : 'Logout'}
+                      {isLoggingOut && (
+                        <svg className="animate-spin h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      )}
+                    </button>
                   </div>
                 </div>
               )}

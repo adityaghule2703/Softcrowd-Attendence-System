@@ -36,20 +36,19 @@ import {
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
-  Business as BusinessIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon
+  Description as DescriptionIcon
 } from '@mui/icons-material';
+import { CheckCircle, XCircle, Calendar, Circle } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
 
 // Import modal components
-import AddCollege from './AddCollege';
-import EditCollege from './EditCollege';
-import ViewCollege from './ViewCollege';
-import DeleteCollege from './DeleteCollege';
+import AddHoliday from './AddHoliday';
+import EditHoliday from './EditHoliday';
+import ViewHoliday from './ViewHoliday';
+import DeleteHoliday from './DeleteHoliday';
 
-// Color constants - Using sidebar background color (#0F172A)
+// Color constants
 const COLORS = {
   primary: '#0F172A',
   primaryLight: '#1E293B',
@@ -71,7 +70,7 @@ const COLORS = {
 };
 
 // Action Menu Component
-const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
+const ActionMenu = ({ holiday, onView, onEdit, onDelete }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -116,7 +115,7 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
       >
         <MenuItem 
           onClick={() => {
-            onView(college);
+            onView(holiday);
             handleClose();
           }}
           sx={{ py: 1.5 }}
@@ -133,7 +132,7 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
         
         <MenuItem 
           onClick={() => {
-            onEdit(college);
+            onEdit(holiday);
             handleClose();
           }}
           sx={{ py: 1.5 }}
@@ -152,7 +151,7 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
         
         <MenuItem 
           onClick={() => {
-            onDelete(college);
+            onDelete(holiday);
             handleClose();
           }}
           sx={{ py: 1.5 }}
@@ -171,8 +170,66 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
   );
 };
 
-const CollegeManagement = () => {
-  const [colleges, setColleges] = useState([]);
+// Status Chip Component - Only shows actual status from API
+const HolidayStatusChip = ({ status }) => {
+  if (status === 'active') {
+    return (
+      <Chip
+        label="Active"
+        size="small"
+        icon={<CheckCircle size={14} />}
+        sx={{
+          bgcolor: '#D1FAE5',
+          color: '#10B981',
+          fontSize: '0.65rem',
+          fontWeight: 600,
+          height: 24,
+          '& .MuiChip-label': { px: 1.5 },
+          '& .MuiChip-icon': { color: '#10B981', marginLeft: '6px' }
+        }}
+      />
+    );
+  }
+  
+  if (status === 'inactive') {
+    return (
+      <Chip
+        label="Inactive"
+        size="small"
+        icon={<XCircle size={14} />}
+        sx={{
+          bgcolor: '#FEE2E2',
+          color: '#EF4444',
+          fontSize: '0.65rem',
+          fontWeight: 600,
+          height: 24,
+          '& .MuiChip-label': { px: 1.5 },
+          '& .MuiChip-icon': { color: '#EF4444', marginLeft: '6px' }
+        }}
+      />
+    );
+  }
+  
+  return (
+    <Chip
+      label={status || 'Unknown'}
+      size="small"
+      icon={<Circle size={14} />}
+      sx={{
+        bgcolor: '#E5E7EB',
+        color: '#6B7280',
+        fontSize: '0.65rem',
+        fontWeight: 600,
+        height: 24,
+        '& .MuiChip-label': { px: 1.5 },
+        '& .MuiChip-icon': { color: '#6B7280', marginLeft: '6px' }
+      }}
+    />
+  );
+};
+
+const HolidayManagement = () => {
+  const [holidays, setHolidays] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -184,7 +241,7 @@ const CollegeManagement = () => {
     message: '',
     severity: 'success'
   });
-
+  
   // Server-side pagination states
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -195,10 +252,10 @@ const CollegeManagement = () => {
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [selectedCollege, setSelectedCollege] = useState(null);
+  const [selectedHoliday, setSelectedHoliday] = useState(null);
 
-  // Load colleges from API with pagination and search
-  const loadCollegesFromAPI = useCallback(async () => {
+  // Load holidays from API with pagination and search
+  const loadHolidaysFromAPI = useCallback(async () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -208,7 +265,7 @@ const CollegeManagement = () => {
         search: searchTerm
       };
       
-      const response = await axios.get(`${BASE_URL}/colleges`, {
+      const response = await axios.get(`${BASE_URL}/holidays`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -217,31 +274,29 @@ const CollegeManagement = () => {
 
       if (response.data && response.data.data) {
         // Transform API response to match component structure
-        const transformedColleges = response.data.data.map(college => ({
-          id: college.id,
-          name: college.name,
-          address: college.address,
-          city: college.city,
-          state: college.state,
-          pincode: college.pincode,
-          contact: college.contact_number,
-          email: college.email,
-          createdAt: college.created_at,
-          updatedAt: college.updated_at
+        const transformedHolidays = response.data.data.map(holiday => ({
+          id: holiday.id,
+          name: holiday.name,
+          startDate: holiday.start_date,
+          endDate: holiday.end_date,
+          note: holiday.note,
+          status: holiday.status, // Use real status from API
+          createdAt: holiday.created_at,
+          updatedAt: holiday.updated_at
         }));
         
-        setColleges(transformedColleges);
+        setHolidays(transformedHolidays);
         setTotalCount(response.data.total || 0);
         setLastPage(response.data.last_page || 1);
       } else {
-        setColleges([]);
+        setHolidays([]);
         setTotalCount(0);
         setLastPage(1);
       }
     } catch (error) {
-      console.error('Error loading colleges:', error);
-      showNotification(error.response?.data?.message || 'Failed to load colleges', 'error');
-      setColleges([]);
+      console.error('Error loading holidays:', error);
+      showNotification(error.response?.data?.message || 'Failed to load holidays', 'error');
+      setHolidays([]);
       setTotalCount(0);
       setLastPage(1);
     } finally {
@@ -249,10 +304,10 @@ const CollegeManagement = () => {
     }
   }, [currentPage, rowsPerPage, searchTerm]);
 
-  // Load colleges when dependencies change
+  // Load holidays when dependencies change
   useEffect(() => {
-    loadCollegesFromAPI();
-  }, [loadCollegesFromAPI]);
+    loadHolidaysFromAPI();
+  }, [loadHolidaysFromAPI]);
 
   // Debounce search
   useEffect(() => {
@@ -265,77 +320,73 @@ const CollegeManagement = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Handle add college
-  const handleAddCollege = (newCollege) => {
+  // Handle add holiday
+  const handleAddHoliday = (newHoliday) => {
     // Transform the API response to match component structure
-    const transformedCollege = {
-      id: newCollege.id,
-      name: newCollege.name,
-      address: newCollege.address,
-      city: newCollege.city,
-      state: newCollege.state,
-      pincode: newCollege.pincode,
-      contact: newCollege.contact_number,
-      email: newCollege.email,
-      createdAt: newCollege.created_at,
-      updatedAt: newCollege.updated_at
+    const transformedHoliday = {
+      id: newHoliday.id,
+      name: newHoliday.name,
+      startDate: newHoliday.start_date,
+      endDate: newHoliday.end_date,
+      note: newHoliday.note,
+      status: newHoliday.status || 'active',
+      createdAt: newHoliday.created_at,
+      updatedAt: newHoliday.updated_at
     };
     
     // If on first page and current list is not full, add to current list
-    if (currentPage === 1 && colleges.length < rowsPerPage) {
-      setColleges(prev => [transformedCollege, ...prev]);
+    if (currentPage === 1 && holidays.length < rowsPerPage) {
+      setHolidays(prev => [transformedHoliday, ...prev]);
     }
     
     // Refresh to get updated total count
-    loadCollegesFromAPI();
-    showNotification('College added successfully!', 'success');
+    loadHolidaysFromAPI();
+    showNotification('Holiday added successfully!', 'success');
   };
 
-  // Handle edit college
-  const handleEditCollege = (updatedCollege) => {
+  // Handle edit holiday
+  const handleEditHoliday = (updatedHoliday) => {
     // Transform the API response to match component structure
-    const transformedCollege = {
-      id: updatedCollege.id,
-      name: updatedCollege.name,
-      address: updatedCollege.address,
-      city: updatedCollege.city,
-      state: updatedCollege.state,
-      pincode: updatedCollege.pincode,
-      contact: updatedCollege.contact_number,
-      email: updatedCollege.email,
-      createdAt: updatedCollege.created_at,
-      updatedAt: updatedCollege.updated_at
+    const transformedHoliday = {
+      id: updatedHoliday.id,
+      name: updatedHoliday.name,
+      startDate: updatedHoliday.start_date,
+      endDate: updatedHoliday.end_date,
+      note: updatedHoliday.note,
+      status: updatedHoliday.status,
+      createdAt: updatedHoliday.created_at,
+      updatedAt: updatedHoliday.updated_at
     };
     
     // Update local state
-    setColleges(prev => prev.map(college => 
-      college.id === transformedCollege.id ? transformedCollege : college
+    setHolidays(prev => prev.map(holiday => 
+      holiday.id === transformedHoliday.id ? transformedHoliday : holiday
     ));
     
-    showNotification('College updated successfully!', 'success');
+    showNotification('Holiday updated successfully!', 'success');
   };
 
-  // Handle delete college
-  const handleDeleteCollege = (collegeId) => {
+  // Handle delete holiday
+  const handleDeleteHoliday = (holidayId) => {
     // Remove from local state
-    setColleges(prev => prev.filter(college => college.id !== collegeId));
-    setSelected(prev => prev.filter(id => id !== collegeId));
+    setHolidays(prev => prev.filter(holiday => holiday.id !== holidayId));
+    setSelected(prev => prev.filter(id => id !== holidayId));
     
     // Refresh to update pagination and total count
-    loadCollegesFromAPI();
-    showNotification('College deleted successfully!', 'success');
+    loadHolidaysFromAPI();
+    showNotification('Holiday deleted successfully!', 'success');
   };
 
   // Handle refresh
   const handleRefresh = () => {
-    loadCollegesFromAPI();
+    loadHolidaysFromAPI();
     showNotification('Data refreshed successfully', 'success');
   };
 
   // Handle select all on current page
   const handleSelectAll = (event) => {
     if (event.target.checked) {
-      setSelected(colleges.map(college => college.id));
+      setSelected(holidays.map(holiday => holiday.id));
     } else {
       setSelected([]);
     }
@@ -362,9 +413,9 @@ const CollegeManagement = () => {
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Delete each selected college
+      // Delete each selected holiday
       const deletePromises = selected.map(id => 
-        axios.delete(`${BASE_URL}/colleges/${id}`, {
+        axios.delete(`${BASE_URL}/holidays/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       );
@@ -375,18 +426,18 @@ const CollegeManagement = () => {
       setSelected([]);
       
       // Check if current page becomes empty and not first page
-      if (colleges.length === selected.length && currentPage > 1) {
+      if (holidays.length === selected.length && currentPage > 1) {
         setCurrentPage(prev => prev - 1);
         setPage(prev => prev - 1);
       } else {
         // Refresh current page
-        loadCollegesFromAPI();
+        loadHolidaysFromAPI();
       }
       
-      showNotification(`${selected.length} colleges deleted successfully`, 'success');
+      showNotification(`${selected.length} holidays deleted successfully`, 'success');
     } catch (error) {
-      console.error('Error bulk deleting colleges:', error);
-      showNotification('Failed to delete some colleges', 'error');
+      console.error('Error bulk deleting holidays:', error);
+      showNotification('Failed to delete some holidays', 'error');
     } finally {
       setLoading(false);
     }
@@ -424,14 +475,24 @@ const CollegeManagement = () => {
     return colors[charCode % colors.length];
   };
 
-  // Get college initials
-  const getCollegeInitials = (name) => {
-    if (!name) return 'C';
+  // Get holiday initials
+  const getHolidayInitials = (name) => {
+    if (!name) return 'H';
     const words = name.split(' ');
     if (words.length >= 2) {
       return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
     }
     return name.substring(0, 2).toUpperCase();
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
   };
 
   return (
@@ -448,10 +509,10 @@ const CollegeManagement = () => {
             mb: 0.5
           }}
         >
-          College Management
+          Holiday Management
         </Typography>
         <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
-          Manage and organize college information and details
+          Manage and organize holiday schedules
         </Typography>
       </Box>
 
@@ -468,7 +529,7 @@ const CollegeManagement = () => {
           {/* Search */}
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
             <TextField
-              placeholder="Search by college name, address, or contact..."
+              placeholder="Search by holiday name or note..."
               size="small"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -586,13 +647,13 @@ const CollegeManagement = () => {
                 }
               }}
             >
-              Add College
+              Add Holiday
             </Button>
           </Stack>
         </Stack>
       </Paper>
 
-      {/* Colleges Table */}
+      {/* Holidays Table */}
       <Paper sx={{ 
         width: '100%', 
         borderRadius: 2, 
@@ -613,8 +674,8 @@ const CollegeManagement = () => {
               }}>
                 <TableCell padding="checkbox" sx={{ width: 40 }}>
                   <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < colleges.length}
-                    checked={colleges.length > 0 && selected.length === colleges.length}
+                    indeterminate={selected.length > 0 && selected.length < holidays.length}
+                    checked={holidays.length > 0 && selected.length === holidays.length}
                     onChange={handleSelectAll}
                     sx={{
                       color: COLORS.text.light,
@@ -636,7 +697,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  College Name
+                  Holiday Name
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -644,7 +705,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  Address
+                  Start Date
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -652,7 +713,23 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  Contact
+                  End Date
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600, 
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.5px',
+                  color: COLORS.text.light
+                }}>
+                  Note
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600, 
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.5px',
+                  color: COLORS.text.light
+                }}>
+                  Status
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -668,35 +745,35 @@ const CollegeManagement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
-                      Loading colleges...
+                      Loading holidays...
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : colleges.length === 0 ? (
+              ) : holidays.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
-                      <BusinessIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
+                      <Calendar size={48} style={{ color: COLORS.text.tertiary, marginBottom: 8 }} />
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
-                        {searchTerm ? 'No colleges found' : 'No colleges available'}
+                        {searchTerm ? 'No holidays found' : 'No holidays available'}
                       </Typography>
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.tertiary, mt: 0.5 }}>
-                        {searchTerm ? 'Try adjusting your search terms' : 'Add your first college to get started'}
+                        {searchTerm ? 'Try adjusting your search terms' : 'Add your first holiday to get started'}
                       </Typography>
                     </Box>
                   </TableCell>
                 </TableRow>
               ) : (
-                colleges.map((college) => {
-                  const isSelected = selected.includes(college.id);
-                  const avatarColor = getAvatarColor(college.name);
+                holidays.map((holiday) => {
+                  const isSelected = selected.includes(holiday.id);
+                  const avatarColor = getAvatarColor(holiday.name);
 
                   return (
                     <TableRow
-                      key={college.id}
+                      key={holiday.id}
                       hover
                       selected={isSelected}
                       sx={{ 
@@ -720,7 +797,7 @@ const CollegeManagement = () => {
                       <TableCell padding="checkbox" sx={{ width: 40 }}>
                         <Checkbox
                           checked={isSelected}
-                          onChange={() => handleSelect(college.id)}
+                          onChange={() => handleSelect(holiday.id)}
                           sx={{
                             color: COLORS.accent,
                             '&.Mui-checked': {
@@ -743,50 +820,48 @@ const CollegeManagement = () => {
                               fontWeight: 600
                             }}
                           >
-                            {getCollegeInitials(college.name)}
+                            {getHolidayInitials(holiday.name)}
                           </Avatar>
                           <Box>
                             <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary }}>
-                              {college.name}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                              {college.city}, {college.state} - {college.pincode}
+                              {holiday.name}
                             </Typography>
                           </Box>
                         </Stack>
                       </TableCell>
                       <TableCell>
-                        <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                          {college.address}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                          {college.city}, {college.state} {college.pincode}
-                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Calendar size={12} style={{ color: COLORS.text.tertiary }} />
+                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                            {formatDate(holiday.startDate)}
+                          </Typography>
+                        </Stack>
                       </TableCell>
                       <TableCell>
-                        <Stack spacing={0.5}>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <PhoneIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
-                            <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                              {college.contact}
-                            </Typography>
-                          </Stack>
-                          {college.email && (
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              <EmailIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
-                              <Typography sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                                {college.email}
-                              </Typography>
-                            </Stack>
-                          )}
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <Calendar size={12} style={{ color: COLORS.text.tertiary }} />
+                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                            {formatDate(holiday.endDate)}
+                          </Typography>
                         </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <DescriptionIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
+                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                            {holiday.note?.length > 50 ? `${holiday.note.substring(0, 50)}...` : holiday.note || '-'}
+                          </Typography>
+                        </Stack>
+                      </TableCell>
+                      <TableCell>
+                        <HolidayStatusChip status={holiday.status} />
                       </TableCell>
                       <TableCell align="center" sx={{ width: 60 }}>
                         <ActionMenu 
-                          college={college}
-                          onView={(c) => { setSelectedCollege(c); setOpenViewModal(true); }}
-                          onEdit={(c) => { setSelectedCollege(c); setOpenEditModal(true); }}
-                          onDelete={(c) => { setSelectedCollege(c); setOpenDeleteDialog(true); }}
+                          holiday={holiday}
+                          onView={(h) => { setSelectedHoliday(h); setOpenViewModal(true); }}
+                          onEdit={(h) => { setSelectedHoliday(h); setOpenEditModal(true); }}
+                          onDelete={(h) => { setSelectedHoliday(h); setOpenDeleteDialog(true); }}
                         />
                       </TableCell>
                     </TableRow>
@@ -823,45 +898,45 @@ const CollegeManagement = () => {
       </Paper>
 
       {/* Modal Components */}
-      <AddCollege 
+      <AddHoliday 
         open={openAddModal}
         onClose={() => setOpenAddModal(false)}
-        onAdd={handleAddCollege}
+        onAdd={handleAddHoliday}
       />
 
-      {selectedCollege && (
+      {selectedHoliday && (
         <>
-          <EditCollege 
+          <EditHoliday 
             open={openEditModal}
             onClose={() => {
               setOpenEditModal(false);
-              setSelectedCollege(null);
+              setSelectedHoliday(null);
             }}
-            college={selectedCollege}
-            onUpdate={handleEditCollege}
+            holiday={selectedHoliday}
+            onUpdate={handleEditHoliday}
           />
 
-          <ViewCollege 
+          <ViewHoliday 
             open={openViewModal}
             onClose={() => {
               setOpenViewModal(false);
-              setSelectedCollege(null);
+              setSelectedHoliday(null);
             }}
-            college={selectedCollege}
+            holiday={selectedHoliday}
             onEdit={() => {
               setOpenViewModal(false);
               setOpenEditModal(true);
             }}
           />
 
-          <DeleteCollege 
+          <DeleteHoliday 
             open={openDeleteDialog}
             onClose={() => {
               setOpenDeleteDialog(false);
-              setSelectedCollege(null);
+              setSelectedHoliday(null);
             }}
-            college={selectedCollege}
-            onDelete={handleDeleteCollege}
+            holiday={selectedHoliday}
+            onDelete={handleDeleteHoliday}
           />
         </>
       )}
@@ -894,4 +969,4 @@ const CollegeManagement = () => {
   );
 };
 
-export default CollegeManagement;
+export default HolidayManagement;

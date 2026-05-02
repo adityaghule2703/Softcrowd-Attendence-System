@@ -18,6 +18,8 @@ import {
 import { 
   Add as AddIcon
 } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Color constants
 const COLORS = {
@@ -57,33 +59,52 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
   const [selectedCollege, setSelectedCollege] = useState(null);
   const [loadingColleges, setLoadingColleges] = useState(false);
   const [formData, setFormData] = useState({
-    collegeName: '',
-    departmentName: '',
-    coordinatorName: '',
-    coordinatorContact: '',
-    coordinatorEmail: ''
+    college_id: '',
+    department_name: '',
+    coordinator_name: '',
+    coordinator_contact: '',
+    coordinator_email: ''
   });
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Load colleges from localStorage
+  // Load colleges from API when dialog opens
   useEffect(() => {
     if (open) {
-      loadColleges();
+      loadCollegesFromAPI();
     }
   }, [open]);
 
-  const loadColleges = () => {
+  const loadCollegesFromAPI = async () => {
     setLoadingColleges(true);
     try {
-      const storedColleges = localStorage.getItem('colleges');
-      if (storedColleges) {
-        const parsedColleges = JSON.parse(storedColleges);
-        setColleges(parsedColleges);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/colleges`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: {
+          per_page: 100 // Load all colleges for dropdown
+        }
+      });
+
+      if (response.data && response.data.data) {
+        const transformedColleges = response.data.data.map(college => ({
+          id: college.id,
+          name: college.name,
+          city: college.city,
+          state: college.state,
+          pincode: college.pincode,
+          address: college.address
+        }));
+        setColleges(transformedColleges);
+      } else {
+        setColleges([]);
       }
     } catch (error) {
       console.error('Error loading colleges:', error);
+      setError('Failed to load colleges. Please refresh and try again.');
     } finally {
       setLoadingColleges(false);
     }
@@ -95,7 +116,7 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
     setFieldErrors(prev => ({ ...prev, [name]: '' }));
     
     let processedValue = value;
-    if (name === 'coordinatorContact') {
+    if (name === 'coordinator_contact') {
       processedValue = value.replace(/\D/g, '').slice(0, 10);
     }
     
@@ -104,10 +125,10 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
 
   const handleCollegeChange = (event, newValue) => {
     setSelectedCollege(newValue);
-    setFieldErrors(prev => ({ ...prev, collegeName: '' }));
+    setFieldErrors(prev => ({ ...prev, college_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
-      collegeName: newValue ? newValue.name : '' 
+      college_id: newValue ? newValue.id : '' 
     }));
   };
 
@@ -115,31 +136,31 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
     const errors = {};
     let isValid = true;
 
-    if (!formData.collegeName?.trim()) {
-      errors.collegeName = 'College name is required';
+    if (!formData.college_id) {
+      errors.college_id = 'College name is required';
       isValid = false;
     }
 
-    if (!formData.departmentName?.trim()) {
-      errors.departmentName = 'Department name is required';
+    if (!formData.department_name?.trim()) {
+      errors.department_name = 'Department name is required';
       isValid = false;
     }
 
-    if (!formData.coordinatorName?.trim()) {
-      errors.coordinatorName = 'Coordinator name is required';
+    if (!formData.coordinator_name?.trim()) {
+      errors.coordinator_name = 'Coordinator name is required';
       isValid = false;
     }
 
-    if (!formData.coordinatorContact?.trim()) {
-      errors.coordinatorContact = 'Coordinator contact is required';
+    if (!formData.coordinator_contact?.trim()) {
+      errors.coordinator_contact = 'Coordinator contact is required';
       isValid = false;
-    } else if (!validatePhone(formData.coordinatorContact)) {
-      errors.coordinatorContact = 'Please enter a valid 10-digit mobile number';
+    } else if (!validatePhone(formData.coordinator_contact)) {
+      errors.coordinator_contact = 'Please enter a valid 10-digit mobile number';
       isValid = false;
     }
 
-    if (formData.coordinatorEmail && !validateEmail(formData.coordinatorEmail)) {
-      errors.coordinatorEmail = 'Please enter a valid email address';
+    if (formData.coordinator_email && !validateEmail(formData.coordinator_email)) {
+      errors.coordinator_email = 'Please enter a valid email address';
       isValid = false;
     }
 
@@ -157,12 +178,43 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      onAdd(formData);
-      resetForm();
-      onClose();
+      const token = localStorage.getItem('token');
+      const payload = {
+        college_id: formData.college_id,
+        department_name: formData.department_name.trim(),
+        coordinator_name: formData.coordinator_name.trim(),
+        coordinator_contact: formData.coordinator_contact,
+        coordinator_email: formData.coordinator_email.trim() || null
+      };
+
+      const response = await axios.post(`${BASE_URL}/departments`, payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.data) {
+        onAdd(response.data.data);
+        resetForm();
+        onClose();
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (err) {
-      setError('Failed to add department. Please try again.');
+      console.error('Error adding department:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to add department. Please try again.';
+      setError(errorMessage);
+      
+      // Handle field-specific errors from backend
+      if (err.response?.data?.errors) {
+        const backendErrors = err.response.data.errors;
+        const newFieldErrors = {};
+        Object.keys(backendErrors).forEach(key => {
+          newFieldErrors[key] = backendErrors[key][0];
+        });
+        setFieldErrors(newFieldErrors);
+      }
     } finally {
       setLoading(false);
     }
@@ -170,11 +222,11 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
 
   const resetForm = () => {
     setFormData({
-      collegeName: '',
-      departmentName: '',
-      coordinatorName: '',
-      coordinatorContact: '',
-      coordinatorEmail: ''
+      college_id: '',
+      department_name: '',
+      coordinator_name: '',
+      coordinator_contact: '',
+      coordinator_email: ''
     });
     setSelectedCollege(null);
     setFieldErrors({});
@@ -273,8 +325,8 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
                     loading={loadingColleges}
                     value={selectedCollege}
                     onChange={handleCollegeChange}
-                    getOptionLabel={(option) => option.name || ''}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    getOptionLabel={(option) => option?.name || ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     disabled={loading}
                     renderInput={(params) => {
                       const { InputLabelProps, InputProps, ...rest } = params;
@@ -283,8 +335,8 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
                           {...rest}
                           size="small"
                           placeholder={loadingColleges ? 'Loading colleges...' : 'Search and select college'}
-                          error={!!fieldErrors.collegeName}
-                          helperText={fieldErrors.collegeName}
+                          error={!!fieldErrors.college_id}
+                          helperText={fieldErrors.college_id}
                           sx={textFieldSx}
                           InputProps={{
                             ...InputProps,
@@ -319,6 +371,7 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
                         }
                       }
                     }}
+                    noOptionsText="No colleges found"
                   />
                 </Box>
               </Grid>
@@ -331,13 +384,13 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
                   <TextField
                     fullWidth
                     size="small"
-                    name="departmentName"
-                    value={formData.departmentName}
+                    name="department_name"
+                    value={formData.department_name}
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="e.g., Computer Science, Mechanical, Civil"
-                    error={!!fieldErrors.departmentName}
-                    helperText={fieldErrors.departmentName}
+                    error={!!fieldErrors.department_name}
+                    helperText={fieldErrors.department_name}
                     sx={textFieldSx}
                   />
                 </Box>
@@ -351,13 +404,13 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
                   <TextField
                     fullWidth
                     size="small"
-                    name="coordinatorName"
-                    value={formData.coordinatorName}
+                    name="coordinator_name"
+                    value={formData.coordinator_name}
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="e.g., Dr. John Smith"
-                    error={!!fieldErrors.coordinatorName}
-                    helperText={fieldErrors.coordinatorName}
+                    error={!!fieldErrors.coordinator_name}
+                    helperText={fieldErrors.coordinator_name}
                     sx={textFieldSx}
                   />
                 </Box>
@@ -371,13 +424,13 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
                   <TextField
                     fullWidth
                     size="small"
-                    name="coordinatorContact"
-                    value={formData.coordinatorContact}
+                    name="coordinator_contact"
+                    value={formData.coordinator_contact}
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="e.g., 9876543210"
-                    error={!!fieldErrors.coordinatorContact}
-                    helperText={fieldErrors.coordinatorContact}
+                    error={!!fieldErrors.coordinator_contact}
+                    helperText={fieldErrors.coordinator_contact}
                     inputProps={{ maxLength: 10 }}
                     sx={numberFieldSx}
                   />
@@ -395,14 +448,14 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
                   <TextField
                     fullWidth
                     size="small"
-                    name="coordinatorEmail"
+                    name="coordinator_email"
                     type="email"
-                    value={formData.coordinatorEmail}
+                    value={formData.coordinator_email}
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="coordinator@college.edu"
-                    error={!!fieldErrors.coordinatorEmail}
-                    helperText={fieldErrors.coordinatorEmail}
+                    error={!!fieldErrors.coordinator_email}
+                    helperText={fieldErrors.coordinator_email}
                     sx={textFieldSx}
                   />
                 </Box>
@@ -459,7 +512,7 @@ const AddDepartment = ({ open, onClose, onAdd }) => {
           onClick={handleSubmit}
           disabled={loading}
           size="small"
-          startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
+          startIcon={loading ? <CircularProgress size={16} /> : <AddIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 32,
             px: 2,

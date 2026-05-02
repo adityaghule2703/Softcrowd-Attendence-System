@@ -16,6 +16,8 @@ import {
   CircularProgress
 } from '@mui/material';
 import { Add as AddIcon } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Color constants
 const COLORS = {
@@ -35,6 +37,13 @@ const COLORS = {
   error: '#EF4444'
 };
 
+// Company options (enum values) - Required dropdown options
+const COMPANY_OPTIONS = [
+  "Exilance Software",
+  "Softcrowd Technology",
+  "Codiant Solution"
+];
+
 const validatePhone = (phone) => {
   const phoneRegex = /^[0-9]{10}$/;
   return phoneRegex.test(phone);
@@ -43,64 +52,112 @@ const validatePhone = (phone) => {
 const AddStudent = ({ open, onClose, onAdd }) => {
   const [colleges, setColleges] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [filteredDepartments, setFilteredDepartments] = useState([]);
   const [selectedCollege, setSelectedCollege] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
+  const [selectedCompany, setSelectedCompany] = useState(null);
   const [loadingColleges, setLoadingColleges] = useState(false);
   const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
-    collegeName: '',
-    departmentName: '',
-    password: ''
+    college_id: '',
+    department_id: '',
+    password: '',
+    company_name: ''
   });
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Load colleges from localStorage
+  // Load colleges from API when dialog opens
   useEffect(() => {
     if (open) {
-      loadColleges();
-      loadDepartments();
+      loadCollegesFromAPI();
+      loadDepartmentsFromAPI();
     }
   }, [open]);
 
-  const loadColleges = () => {
+  const loadCollegesFromAPI = async () => {
     setLoadingColleges(true);
     try {
-      const storedColleges = localStorage.getItem('colleges');
-      if (storedColleges) {
-        const parsedColleges = JSON.parse(storedColleges);
-        setColleges(parsedColleges);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/colleges`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: {
+          per_page: 100 // Load all colleges for dropdown
+        }
+      });
+
+      if (response.data && response.data.data) {
+        const transformedColleges = response.data.data.map(college => ({
+          id: college.id,
+          name: college.name,
+          city: college.city,
+          state: college.state,
+          pincode: college.pincode,
+          address: college.address
+        }));
+        setColleges(transformedColleges);
+      } else {
+        setColleges([]);
       }
     } catch (error) {
       console.error('Error loading colleges:', error);
+      setError('Failed to load colleges. Please refresh and try again.');
     } finally {
       setLoadingColleges(false);
     }
   };
 
-  const loadDepartments = () => {
+  const loadDepartmentsFromAPI = async () => {
     setLoadingDepartments(true);
     try {
-      const storedDepartments = localStorage.getItem('departments');
-      if (storedDepartments) {
-        const parsedDepartments = JSON.parse(storedDepartments);
-        setDepartments(parsedDepartments);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/departments`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: {
+          per_page: 100 // Load all departments for dropdown
+        }
+      });
+
+      if (response.data && response.data.data) {
+        const transformedDepartments = response.data.data.map(dept => ({
+          id: dept.id,
+          department_name: dept.department_name,
+          college_id: dept.college_id,
+          coordinator_name: dept.coordinator_name,
+          coordinator_contact: dept.coordinator_contact,
+          coordinator_email: dept.coordinator_email
+        }));
+        setDepartments(transformedDepartments);
+      } else {
+        setDepartments([]);
       }
     } catch (error) {
       console.error('Error loading departments:', error);
+      setError('Failed to load departments. Please refresh and try again.');
     } finally {
       setLoadingDepartments(false);
     }
   };
 
   // Filter departments based on selected college
-  const getFilteredDepartments = () => {
-    if (!selectedCollege) return departments;
-    return departments.filter(dept => dept.collegeName === selectedCollege.name);
-  };
+  useEffect(() => {
+    if (selectedCollege) {
+      const filtered = departments.filter(dept => dept.college_id === selectedCollege.id);
+      setFilteredDepartments(filtered);
+    } else {
+      setFilteredDepartments([]);
+    }
+    // Reset selected department when college changes
+    setSelectedDepartment(null);
+    setFormData(prev => ({ ...prev, department_id: '' }));
+  }, [selectedCollege, departments]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -117,21 +174,28 @@ const AddStudent = ({ open, onClose, onAdd }) => {
 
   const handleCollegeChange = (event, newValue) => {
     setSelectedCollege(newValue);
-    setSelectedDepartment(null);
-    setFieldErrors(prev => ({ ...prev, collegeName: '', departmentName: '' }));
+    setFieldErrors(prev => ({ ...prev, college_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
-      collegeName: newValue ? newValue.name : '',
-      departmentName: ''
+      college_id: newValue ? newValue.id : ''
     }));
   };
 
   const handleDepartmentChange = (event, newValue) => {
     setSelectedDepartment(newValue);
-    setFieldErrors(prev => ({ ...prev, departmentName: '' }));
+    setFieldErrors(prev => ({ ...prev, department_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
-      departmentName: newValue ? newValue.departmentName : ''
+      department_id: newValue ? newValue.id : ''
+    }));
+  };
+
+  const handleCompanyChange = (event, newValue) => {
+    setSelectedCompany(newValue);
+    setFieldErrors(prev => ({ ...prev, company_name: '' }));
+    setFormData(prev => ({ 
+      ...prev, 
+      company_name: newValue || ''
     }));
   };
 
@@ -152,13 +216,13 @@ const AddStudent = ({ open, onClose, onAdd }) => {
       isValid = false;
     }
 
-    if (!formData.collegeName?.trim()) {
-      errors.collegeName = 'College name is required';
+    if (!formData.college_id) {
+      errors.college_id = 'College name is required';
       isValid = false;
     }
 
-    if (!formData.departmentName?.trim()) {
-      errors.departmentName = 'Department name is required';
+    if (!formData.department_id) {
+      errors.department_id = 'Department name is required';
       isValid = false;
     }
 
@@ -167,6 +231,15 @@ const AddStudent = ({ open, onClose, onAdd }) => {
       isValid = false;
     } else if (formData.password.length < 6) {
       errors.password = 'Password must be at least 6 characters';
+      isValid = false;
+    }
+
+    // Company name validation - required field
+    if (!formData.company_name?.trim()) {
+      errors.company_name = 'Company name is required';
+      isValid = false;
+    } else if (!COMPANY_OPTIONS.includes(formData.company_name)) {
+      errors.company_name = 'Please select a valid company from the options';
       isValid = false;
     }
 
@@ -184,12 +257,44 @@ const AddStudent = ({ open, onClose, onAdd }) => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      onAdd(formData);
-      resetForm();
-      onClose();
+      const token = localStorage.getItem('token');
+      const payload = {
+        name: formData.name.trim(),
+        mobile: formData.mobile,
+        college_id: formData.college_id,
+        department_id: formData.department_id,
+        password: formData.password,
+        company_name: formData.company_name
+      };
+
+      const response = await axios.post(`${BASE_URL}/students`, payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.data) {
+        onAdd(response.data.data);
+        resetForm();
+        onClose();
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (err) {
-      setError('Failed to add student. Please try again.');
+      console.error('Error adding student:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to add student. Please try again.';
+      setError(errorMessage);
+      
+      // Handle field-specific errors from backend
+      if (err.response?.data?.errors) {
+        const backendErrors = err.response.data.errors;
+        const newFieldErrors = {};
+        Object.keys(backendErrors).forEach(key => {
+          newFieldErrors[key] = backendErrors[key][0];
+        });
+        setFieldErrors(newFieldErrors);
+      }
     } finally {
       setLoading(false);
     }
@@ -199,12 +304,14 @@ const AddStudent = ({ open, onClose, onAdd }) => {
     setFormData({
       name: '',
       mobile: '',
-      collegeName: '',
-      departmentName: '',
-      password: ''
+      college_id: '',
+      department_id: '',
+      password: '',
+      company_name: ''
     });
     setSelectedCollege(null);
     setSelectedDepartment(null);
+    setSelectedCompany(null);
     setFieldErrors({});
     setError('');
   };
@@ -345,8 +452,8 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                     loading={loadingColleges}
                     value={selectedCollege}
                     onChange={handleCollegeChange}
-                    getOptionLabel={(option) => option.name || ''}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    getOptionLabel={(option) => option?.name || ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     disabled={loading}
                     renderInput={(params) => {
                       const { InputLabelProps, InputProps, ...rest } = params;
@@ -355,8 +462,8 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                           {...rest}
                           size="small"
                           placeholder={loadingColleges ? 'Loading colleges...' : 'Search and select college'}
-                          error={!!fieldErrors.collegeName}
-                          helperText={fieldErrors.collegeName}
+                          error={!!fieldErrors.college_id}
+                          helperText={fieldErrors.college_id}
                           sx={textFieldSx}
                           InputProps={{
                             ...InputProps,
@@ -391,6 +498,7 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                         }
                       }
                     }}
+                    noOptionsText="No colleges found"
                   />
                 </Box>
               </Grid>
@@ -402,12 +510,12 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                   </Typography>
                   <Autocomplete
                     fullWidth
-                    options={getFilteredDepartments()}
+                    options={filteredDepartments}
                     loading={loadingDepartments}
                     value={selectedDepartment}
                     onChange={handleDepartmentChange}
-                    getOptionLabel={(option) => option.departmentName || ''}
-                    isOptionEqualToValue={(option, value) => option.id === value.id}
+                    getOptionLabel={(option) => option?.department_name || ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     disabled={loading || !selectedCollege}
                     renderInput={(params) => {
                       const { InputLabelProps, InputProps, ...rest } = params;
@@ -416,8 +524,8 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                           {...rest}
                           size="small"
                           placeholder={!selectedCollege ? 'Please select college first' : (loadingDepartments ? 'Loading departments...' : 'Search and select department')}
-                          error={!!fieldErrors.departmentName}
-                          helperText={fieldErrors.departmentName}
+                          error={!!fieldErrors.department_id}
+                          helperText={fieldErrors.department_id}
                           sx={textFieldSx}
                           InputProps={{
                             ...InputProps,
@@ -435,10 +543,10 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                       <li {...props}>
                         <Box>
                           <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
-                            {option.departmentName}
+                            {option.department_name}
                           </Typography>
                           <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                            Coordinator: {option.coordinatorName} | Contact: {option.coordinatorContact}
+                            Coordinator: {option.coordinator_name} | Contact: {option.coordinator_contact}
                           </Typography>
                         </Box>
                       </li>
@@ -452,6 +560,53 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                         }
                       }
                     }}
+                    noOptionsText="No departments found for this college"
+                  />
+                </Box>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                    COMPANY NAME <span style={{ color: COLORS.error }}>*</span>
+                  </Typography>
+                  <Autocomplete
+                    fullWidth
+                    options={COMPANY_OPTIONS}
+                    value={selectedCompany}
+                    onChange={handleCompanyChange}
+                    disabled={loading}
+                    disableClearable={false}
+                    renderInput={(params) => {
+                      const { InputLabelProps, InputProps, ...rest } = params;
+                      return (
+                        <TextField
+                          {...rest}
+                          size="small"
+                          placeholder="Select company name"
+                          error={!!fieldErrors.company_name}
+                          helperText={fieldErrors.company_name}
+                          sx={textFieldSx}
+                        />
+                      );
+                    }}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {option}
+                        </Typography>
+                      </li>
+                    )}
+                    ListboxProps={{
+                      sx: {
+                        '& .MuiAutocomplete-option': {
+                          fontSize: '0.75rem',
+                          py: 1,
+                          px: 1.5
+                        }
+                      }
+                    }}
+                    noOptionsText="No company options available"
                   />
                 </Box>
               </Grid>
@@ -528,7 +683,7 @@ const AddStudent = ({ open, onClose, onAdd }) => {
           onClick={handleSubmit}
           disabled={loading}
           size="small"
-          startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
+          startIcon={loading ? <CircularProgress size={16} /> : <AddIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 32,
             px: 2,

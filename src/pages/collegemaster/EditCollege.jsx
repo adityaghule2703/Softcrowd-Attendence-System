@@ -13,13 +13,13 @@ import {
   DialogActions,
   Alert,
   Chip,
-  styled
+  CircularProgress
 } from '@mui/material';
 import { 
-  Edit as EditIcon,
-  NavigateNext as NavigateNextIcon,
-  NavigateBefore as NavigateBeforeIcon
+  Edit as EditIcon
 } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Color constants
 const COLORS = {
@@ -45,6 +45,7 @@ const COLORS = {
 };
 
 const validateEmail = (email) => {
+  if (!email) return true; // Email is optional
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
@@ -61,7 +62,7 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
     city: '',
     state: '',
     pincode: '',
-    contact: '',
+    contact_number: '',
     email: ''
   });
   const [fieldErrors, setFieldErrors] = useState({});
@@ -76,7 +77,7 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
         city: college.city || '',
         state: college.state || '',
         pincode: college.pincode || '',
-        contact: college.contact || '',
+        contact_number: college.contact || college.contact_number || '',
         email: college.email || ''
       });
     }
@@ -91,7 +92,7 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
     }));
     
     let processedValue = value;
-    if (name === 'contact') {
+    if (name === 'contact_number') {
       processedValue = value.replace(/\D/g, '').slice(0, 10);
     }
     if (name === 'pincode') {
@@ -102,29 +103,6 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
       ...prev,
       [name]: processedValue
     }));
-  };
-
-  const validateField = (name, value) => {
-    switch (name) {
-      case 'email':
-        if (value && !validateEmail(value)) {
-          return 'Please enter a valid email address';
-        }
-        break;
-      case 'contact':
-        if (value && !validatePhone(value)) {
-          return 'Please enter a valid 10-digit mobile number';
-        }
-        break;
-      case 'pincode':
-        if (value && !/^\d{6}$/.test(value)) {
-          return 'Please enter a valid 6-digit pincode';
-        }
-        break;
-      default:
-        return '';
-    }
-    return '';
   };
 
   const validateAllFields = () => {
@@ -154,23 +132,17 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
     if (!formData.pincode?.trim()) {
       errors.pincode = 'Pincode is required';
       isValid = false;
-    } else {
-      const pincodeError = validateField('pincode', formData.pincode);
-      if (pincodeError) {
-        errors.pincode = pincodeError;
-        isValid = false;
-      }
+    } else if (!/^\d{6}$/.test(formData.pincode)) {
+      errors.pincode = 'Please enter a valid 6-digit pincode';
+      isValid = false;
     }
 
-    if (!formData.contact?.trim()) {
-      errors.contact = 'Contact number is required';
+    if (!formData.contact_number?.trim()) {
+      errors.contact_number = 'Contact number is required';
       isValid = false;
-    } else {
-      const contactError = validateField('contact', formData.contact);
-      if (contactError) {
-        errors.contact = contactError;
-        isValid = false;
-      }
+    } else if (!validatePhone(formData.contact_number)) {
+      errors.contact_number = 'Please enter a valid 10-digit mobile number';
+      isValid = false;
     }
 
     if (formData.email && !validateEmail(formData.email)) {
@@ -194,18 +166,44 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
     setError('');
 
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const updatedCollege = {
-        ...college,
-        ...formData,
-        updatedAt: new Date().toISOString()
+      const token = localStorage.getItem('token');
+      const payload = {
+        name: formData.name.trim(),
+        address: formData.address.trim(),
+        city: formData.city.trim(),
+        state: formData.state.trim(),
+        pincode: formData.pincode,
+        contact_number: formData.contact_number,
+        email: formData.email.trim() || null
       };
-      
-      onUpdate(updatedCollege);
-      onClose();
+
+      const response = await axios.put(`${BASE_URL}/colleges/${college.id}`, payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.data) {
+        onUpdate(response.data.data);
+        onClose();
+      } else {
+        throw new Error('Invalid response from server');
+      }
     } catch (err) {
-      setError('Failed to update college. Please try again.');
+      console.error('Error updating college:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to update college. Please try again.';
+      setError(errorMessage);
+      
+      // Handle field-specific errors from backend
+      if (err.response?.data?.errors) {
+        const backendErrors = err.response.data.errors;
+        const newFieldErrors = {};
+        Object.keys(backendErrors).forEach(key => {
+          newFieldErrors[key] = backendErrors[key][0];
+        });
+        setFieldErrors(newFieldErrors);
+      }
     } finally {
       setLoading(false);
     }
@@ -215,6 +213,33 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
     setFieldErrors({});
     setError('');
     onClose();
+  };
+
+  const textFieldSx = {
+    '& .MuiOutlinedInput-root': {
+      borderRadius: 1.5,
+      fontSize: '0.75rem',
+      '&:hover fieldset': { borderColor: COLORS.accent },
+      '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 },
+      '&.Mui-error fieldset': { borderColor: COLORS.error }
+    },
+    '& .MuiInputBase-input': {
+      py: 1,
+      px: 1.5,
+      fontSize: '0.75rem',
+      color: COLORS.text.primary,
+      '&::placeholder': {
+        color: COLORS.text.tertiary,
+        fontSize: '0.75rem'
+      }
+    },
+    '& input[type=number]': {
+      MozAppearance: 'textfield'
+    },
+    '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
+      WebkitAppearance: 'none',
+      margin: 0
+    }
   };
 
   return (
@@ -236,6 +261,7 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
         borderBottom: `1px solid ${COLORS.border}`,
         py: 1.5,
         px: 2.5,
+        mb: 2,
         bgcolor: COLORS.background.white,
         display: 'flex',
         justifyContent: 'space-between',
@@ -280,7 +306,7 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
             <Grid container spacing={1.5}>
               <Grid size={{ xs: 12 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     COLLEGE NAME <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -292,32 +318,15 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
                     disabled={loading}
                     placeholder="e.g., ABC College of Engineering"
                     error={!!fieldErrors.name}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                        fontSize: '0.75rem',
-                        '&:hover fieldset': { borderColor: COLORS.accent },
-                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                      },
-                      '& .MuiInputBase-input': {
-                        py: 1,
-                        px: 1.5,
-                        fontSize: '0.75rem',
-                        color: COLORS.text.primary
-                      }
-                    }}
+                    helperText={fieldErrors.name}
+                    sx={textFieldSx}
                   />
-                  {fieldErrors.name && (
-                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.error }}>
-                      {fieldErrors.name}
-                    </Typography>
-                  )}
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     ADDRESS <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -331,32 +340,15 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
                     disabled={loading}
                     placeholder="Enter complete address"
                     error={!!fieldErrors.address}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                        fontSize: '0.75rem',
-                        '&:hover fieldset': { borderColor: COLORS.accent },
-                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                      },
-                      '& .MuiInputBase-input': {
-                        py: 1,
-                        px: 1.5,
-                        fontSize: '0.75rem',
-                        color: COLORS.text.primary
-                      }
-                    }}
+                    helperText={fieldErrors.address}
+                    sx={textFieldSx}
                   />
-                  {fieldErrors.address && (
-                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.error }}>
-                      {fieldErrors.address}
-                    </Typography>
-                  )}
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     CITY <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -368,32 +360,15 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
                     disabled={loading}
                     placeholder="e.g., New York"
                     error={!!fieldErrors.city}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                        fontSize: '0.75rem',
-                        '&:hover fieldset': { borderColor: COLORS.accent },
-                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                      },
-                      '& .MuiInputBase-input': {
-                        py: 1,
-                        px: 1.5,
-                        fontSize: '0.75rem',
-                        color: COLORS.text.primary
-                      }
-                    }}
+                    helperText={fieldErrors.city}
+                    sx={textFieldSx}
                   />
-                  {fieldErrors.city && (
-                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.error }}>
-                      {fieldErrors.city}
-                    </Typography>
-                  )}
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     STATE <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -405,32 +380,15 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
                     disabled={loading}
                     placeholder="e.g., New York"
                     error={!!fieldErrors.state}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                        fontSize: '0.75rem',
-                        '&:hover fieldset': { borderColor: COLORS.accent },
-                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                      },
-                      '& .MuiInputBase-input': {
-                        py: 1,
-                        px: 1.5,
-                        fontSize: '0.75rem',
-                        color: COLORS.text.primary
-                      }
-                    }}
+                    helperText={fieldErrors.state}
+                    sx={textFieldSx}
                   />
-                  {fieldErrors.state && (
-                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.error }}>
-                      {fieldErrors.state}
-                    </Typography>
-                  )}
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     PINCODE <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -442,77 +400,45 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
                     disabled={loading}
                     placeholder="e.g., 10001"
                     error={!!fieldErrors.pincode}
+                    helperText={fieldErrors.pincode}
                     inputProps={{ maxLength: 6 }}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                        fontSize: '0.75rem',
-                        '&:hover fieldset': { borderColor: COLORS.accent },
-                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                      },
-                      '& .MuiInputBase-input': {
-                        py: 1,
-                        px: 1.5,
-                        fontSize: '0.75rem',
-                        color: COLORS.text.primary
-                      }
-                    }}
+                    type="text"
+                    sx={textFieldSx}
                   />
                   <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
                     6-digit pincode
                   </Typography>
-                  {fieldErrors.pincode && (
-                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.error }}>
-                      {fieldErrors.pincode}
-                    </Typography>
-                  )}
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     CONTACT NUMBER <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
                     fullWidth
                     size="small"
-                    name="contact"
-                    value={formData.contact}
+                    name="contact_number"
+                    value={formData.contact_number}
                     onChange={handleChange}
                     disabled={loading}
                     placeholder="e.g., 9876543210"
-                    error={!!fieldErrors.contact}
+                    error={!!fieldErrors.contact_number}
+                    helperText={fieldErrors.contact_number}
                     inputProps={{ maxLength: 10 }}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                        fontSize: '0.75rem',
-                        '&:hover fieldset': { borderColor: COLORS.accent },
-                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                      },
-                      '& .MuiInputBase-input': {
-                        py: 1,
-                        px: 1.5,
-                        fontSize: '0.75rem',
-                        color: COLORS.text.primary
-                      }
-                    }}
+                    type="text"
+                    sx={textFieldSx}
                   />
                   <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
                     10-digit mobile number
                   </Typography>
-                  {fieldErrors.contact && (
-                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.error }}>
-                      {fieldErrors.contact}
-                    </Typography>
-                  )}
                 </Box>
               </Grid>
 
               <Grid size={{ xs: 12 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     EMAIL (Optional)
                   </Typography>
                   <TextField
@@ -525,26 +451,9 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
                     disabled={loading}
                     placeholder="college@example.com"
                     error={!!fieldErrors.email}
-                    sx={{
-                      '& .MuiOutlinedInput-root': {
-                        borderRadius: 1.5,
-                        fontSize: '0.75rem',
-                        '&:hover fieldset': { borderColor: COLORS.accent },
-                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                      },
-                      '& .MuiInputBase-input': {
-                        py: 1,
-                        px: 1.5,
-                        fontSize: '0.75rem',
-                        color: COLORS.text.primary
-                      }
-                    }}
+                    helperText={fieldErrors.email}
+                    sx={textFieldSx}
                   />
-                  {fieldErrors.email && (
-                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.error }}>
-                      {fieldErrors.email}
-                    </Typography>
-                  )}
                 </Box>
               </Grid>
             </Grid>
@@ -584,7 +493,11 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
             color: COLORS.text.secondary,
             fontSize: '0.7rem',
             fontWeight: 500,
-            textTransform: 'none'
+            textTransform: 'none',
+            '&:hover': {
+              borderColor: COLORS.accent,
+              bgcolor: `${COLORS.accent}10`
+            }
           }}
         >
           Cancel
@@ -594,7 +507,7 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
           onClick={handleSubmit}
           disabled={loading}
           size="small"
-          startIcon={<EditIcon sx={{ fontSize: '1rem' }} />}
+          startIcon={loading ? <CircularProgress size={16} /> : <EditIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 32,
             px: 2,
@@ -603,8 +516,9 @@ const EditCollege = ({ open, onClose, college, onUpdate }) => {
             fontSize: '0.7rem',
             fontWeight: 500,
             textTransform: 'none',
+            boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
             '&:hover': {
-              bgcolor: COLORS.primaryDark
+              bgcolor: COLORS.primaryDark,
             }
           }}
         >

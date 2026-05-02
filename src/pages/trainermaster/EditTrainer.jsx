@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Box,
   Paper,
@@ -12,40 +12,28 @@ import {
   DialogContent,
   DialogActions,
   Alert,
+  Chip,
   CircularProgress
 } from '@mui/material';
-import { 
-  Add as AddIcon
-} from '@mui/icons-material';
+import { Edit as EditIcon } from '@mui/icons-material';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
 
-// Color constants
 const COLORS = {
   primary: '#0F172A',
-  primaryLight: '#1E293B',
   primaryDark: '#0A0F1E',
   accent: '#00AEED',
   text: {
     primary: '#1E293B',
     secondary: '#64748B',
-    tertiary: '#94A3B8',
-    light: '#FFFFFF'
+    tertiary: '#94A3B8'
   },
   background: {
     white: '#FFFFFF',
-    light: '#F8FAFC',
-    hover: '#F1F5F9'
+    light: '#F8FAFC'
   },
   border: '#E2E8F0',
-  error: '#EF4444',
-  success: '#10B981'
-};
-
-const validateEmail = (email) => {
-  if (!email) return true; // Email is optional
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
+  error: '#EF4444'
 };
 
 const validatePhone = (phone) => {
@@ -53,31 +41,41 @@ const validatePhone = (phone) => {
   return phoneRegex.test(phone);
 };
 
-const AddCollege = ({ open, onClose, onAdd }) => {
+const validateEmail = (email) => {
+  if (!email) return true;
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+};
+
+const EditTrainer = ({ open, onClose, trainer, onUpdate }) => {
   const [formData, setFormData] = useState({
     name: '',
-    address: '',
-    city: '',
-    state: '',
-    pincode: '',
-    contact_number: '',
-    email: ''
+    mobile: '',
+    email: '',
+    address: ''
   });
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (trainer) {
+      setFormData({
+        name: trainer.name || '',
+        mobile: trainer.mobile || trainer.contact || '',
+        email: trainer.email || '',
+        address: trainer.address || ''
+      });
+    }
+  }, [trainer]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
     setFieldErrors(prev => ({ ...prev, [name]: '' }));
     
     let processedValue = value;
-    if (name === 'contact_number') {
+    if (name === 'mobile') {
       processedValue = value.replace(/\D/g, '').slice(0, 10);
-    }
-    if (name === 'pincode') {
-      processedValue = value.replace(/\D/g, '').slice(0, 6);
     }
     
     setFormData(prev => ({ ...prev, [name]: processedValue }));
@@ -88,43 +86,25 @@ const AddCollege = ({ open, onClose, onAdd }) => {
     let isValid = true;
 
     if (!formData.name?.trim()) {
-      errors.name = 'College name is required';
+      errors.name = 'Trainer name is required';
       isValid = false;
     }
 
-    if (!formData.address?.trim()) {
-      errors.address = 'Address is required';
+    if (!formData.mobile?.trim()) {
+      errors.mobile = 'Contact number is required';
       isValid = false;
-    }
-
-    if (!formData.city?.trim()) {
-      errors.city = 'City is required';
-      isValid = false;
-    }
-
-    if (!formData.state?.trim()) {
-      errors.state = 'State is required';
-      isValid = false;
-    }
-
-    if (!formData.pincode?.trim()) {
-      errors.pincode = 'Pincode is required';
-      isValid = false;
-    } else if (!/^\d{6}$/.test(formData.pincode)) {
-      errors.pincode = 'Please enter a valid 6-digit pincode';
-      isValid = false;
-    }
-
-    if (!formData.contact_number?.trim()) {
-      errors.contact_number = 'Contact number is required';
-      isValid = false;
-    } else if (!validatePhone(formData.contact_number)) {
-      errors.contact_number = 'Please enter a valid 10-digit mobile number';
+    } else if (!validatePhone(formData.mobile)) {
+      errors.mobile = 'Please enter a valid 10-digit mobile number';
       isValid = false;
     }
 
     if (formData.email && !validateEmail(formData.email)) {
       errors.email = 'Please enter a valid email address';
+      isValid = false;
+    }
+
+    if (!formData.address?.trim()) {
+      errors.address = 'Address is required';
       isValid = false;
     }
 
@@ -145,15 +125,12 @@ const AddCollege = ({ open, onClose, onAdd }) => {
       const token = localStorage.getItem('token');
       const payload = {
         name: formData.name.trim(),
-        address: formData.address.trim(),
-        city: formData.city.trim(),
-        state: formData.state.trim(),
-        pincode: formData.pincode,
-        contact_number: formData.contact_number,
-        email: formData.email.trim() || null
+        mobile: formData.mobile,
+        email: formData.email.trim() || null,
+        address: formData.address.trim()
       };
 
-      const response = await axios.post(`${BASE_URL}/colleges`, payload, {
+      const response = await axios.put(`${BASE_URL}/trainers/${trainer.id}`, payload, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -161,15 +138,14 @@ const AddCollege = ({ open, onClose, onAdd }) => {
       });
 
       if (response.data && response.data.data) {
-        onAdd(response.data.data);
-        resetForm();
+        onUpdate(response.data.data);
         onClose();
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (err) {
-      console.error('Error adding college:', err);
-      const errorMessage = err.response?.data?.message || 'Failed to add college. Please try again.';
+      console.error('Error updating trainer:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to update trainer. Please try again.';
       setError(errorMessage);
       
       // Handle field-specific errors from backend
@@ -186,22 +162,9 @@ const AddCollege = ({ open, onClose, onAdd }) => {
     }
   };
 
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      address: '',
-      city: '',
-      state: '',
-      pincode: '',
-      contact_number: '',
-      email: ''
-    });
+  const handleClose = () => {
     setFieldErrors({});
     setError('');
-  };
-
-  const handleClose = () => {
-    resetForm();
     onClose();
   };
 
@@ -222,10 +185,12 @@ const AddCollege = ({ open, onClose, onAdd }) => {
         color: COLORS.text.tertiary,
         fontSize: '0.75rem'
       }
-    },
-    '& input[type=number]': {
-      MozAppearance: 'textfield'
-    },
+    }
+  };
+
+  const numberFieldSx = {
+    ...textFieldSx,
+    '& input[type=number]': { MozAppearance: 'textfield' },
     '& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button': {
       WebkitAppearance: 'none',
       margin: 0
@@ -233,10 +198,10 @@ const AddCollege = ({ open, onClose, onAdd }) => {
   };
 
   return (
-    <Dialog
-      open={open}
-      onClose={handleClose}
-      maxWidth="md"
+    <Dialog 
+      open={open} 
+      onClose={handleClose} 
+      maxWidth="md" 
       fullWidth
       PaperProps={{
         sx: {
@@ -247,23 +212,38 @@ const AddCollege = ({ open, onClose, onAdd }) => {
         }
       }}
     >
-      <DialogTitle sx={{
-        borderBottom: `1px solid ${COLORS.border}`,
-        py: 1.5,
-        px: 2.5,
+      <DialogTitle sx={{ 
+        borderBottom: `1px solid ${COLORS.border}`, 
+        py: 1.5, 
+        px: 2.5, 
         mb: 2,
-        bgcolor: COLORS.background.white
+        bgcolor: COLORS.background.white, 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center' 
       }}>
         <Typography sx={{ fontSize: '1.2rem', fontWeight: 700, color: COLORS.text.primary }}>
-          Add New College
+          Edit Trainer
         </Typography>
+        {trainer?.id && (
+          <Chip 
+            label={`ID: ${trainer.id}`} 
+            size="small" 
+            sx={{ 
+              fontSize: '0.65rem', 
+              fontWeight: 500,
+              height: 20,
+              bgcolor: COLORS.background.light,
+              color: COLORS.text.secondary
+            }} 
+          />
+        )}
       </DialogTitle>
 
       <DialogContent sx={{ p: 2.5, bgcolor: COLORS.background.white }}>
         <Stack spacing={2}>
           <Paper sx={{ 
             p: 2, 
-            bgcolor: COLORS.background.white, 
             borderRadius: 1.5, 
             border: `1px solid ${COLORS.border}`,
             boxShadow: 'none'
@@ -272,16 +252,17 @@ const AddCollege = ({ open, onClose, onAdd }) => {
               fontSize: '0.8rem', 
               fontWeight: 600, 
               color: COLORS.accent, 
-              mb: 1.5 
+              mb: 1.5,
+              letterSpacing: '0.5px'
             }}>
-              College Information
+              Trainer Information
             </Typography>
             
             <Grid container spacing={1.5}>
-              <Grid size={{ xs: 12 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    COLLEGE NAME <span style={{ color: COLORS.error }}>*</span>
+                    TRAINER NAME <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
                     fullWidth
@@ -290,9 +271,54 @@ const AddCollege = ({ open, onClose, onAdd }) => {
                     value={formData.name}
                     onChange={handleChange}
                     disabled={loading}
-                    placeholder="e.g., ABC College of Engineering"
+                    placeholder="e.g., Dr. John Smith"
                     error={!!fieldErrors.name}
                     helperText={fieldErrors.name}
+                    sx={textFieldSx}
+                  />
+                </Box>
+              </Grid>
+
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                    CONTACT NUMBER <span style={{ color: COLORS.error }}>*</span>
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    name="mobile"
+                    value={formData.mobile}
+                    onChange={handleChange}
+                    disabled={loading}
+                    placeholder="e.g., 9876543210"
+                    error={!!fieldErrors.mobile}
+                    helperText={fieldErrors.mobile}
+                    inputProps={{ maxLength: 10 }}
+                    sx={numberFieldSx}
+                  />
+                  <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                    10-digit mobile number
+                  </Typography>
+                </Box>
+              </Grid>
+
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                    EMAIL (Optional)
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    size="small"
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    disabled={loading}
+                    placeholder="trainer@example.com"
+                    error={!!fieldErrors.email}
+                    helperText={fieldErrors.email}
                     sx={textFieldSx}
                   />
                 </Box>
@@ -319,117 +345,6 @@ const AddCollege = ({ open, onClose, onAdd }) => {
                   />
                 </Box>
               </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    CITY <span style={{ color: COLORS.error }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="city"
-                    value={formData.city}
-                    onChange={handleChange}
-                    disabled={loading}
-                    placeholder="e.g., New York"
-                    error={!!fieldErrors.city}
-                    helperText={fieldErrors.city}
-                    sx={textFieldSx}
-                  />
-                </Box>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    STATE <span style={{ color: COLORS.error }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="state"
-                    value={formData.state}
-                    onChange={handleChange}
-                    disabled={loading}
-                    placeholder="e.g., New York"
-                    error={!!fieldErrors.state}
-                    helperText={fieldErrors.state}
-                    sx={textFieldSx}
-                  />
-                </Box>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    PINCODE <span style={{ color: COLORS.error }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="pincode"
-                    value={formData.pincode}
-                    onChange={handleChange}
-                    disabled={loading}
-                    placeholder="e.g., 10001"
-                    error={!!fieldErrors.pincode}
-                    helperText={fieldErrors.pincode}
-                    inputProps={{ maxLength: 6 }}
-                    type="text"
-                    sx={textFieldSx}
-                  />
-                  <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                    6-digit pincode
-                  </Typography>
-                </Box>
-              </Grid>
-
-              <Grid size={{ xs: 12, sm: 6 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    CONTACT NUMBER <span style={{ color: COLORS.error }}>*</span>
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="contact_number"
-                    value={formData.contact_number}
-                    onChange={handleChange}
-                    disabled={loading}
-                    placeholder="e.g., 9876543210"
-                    error={!!fieldErrors.contact_number}
-                    helperText={fieldErrors.contact_number}
-                    inputProps={{ maxLength: 10 }}
-                    type="text"
-                    sx={textFieldSx}
-                  />
-                  <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                    10-digit mobile number
-                  </Typography>
-                </Box>
-              </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    EMAIL (Optional)
-                  </Typography>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    name="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    disabled={loading}
-                    placeholder="college@example.com"
-                    error={!!fieldErrors.email}
-                    helperText={fieldErrors.email}
-                    sx={textFieldSx}
-                  />
-                </Box>
-              </Grid>
             </Grid>
           </Paper>
 
@@ -449,17 +364,15 @@ const AddCollege = ({ open, onClose, onAdd }) => {
         </Stack>
       </DialogContent>
 
-      <DialogActions sx={{
-        px: 2.5,
-        py: 1.5,
+      <DialogActions sx={{ 
+        px: 2.5, 
+        py: 1.5, 
         borderTop: `1px solid ${COLORS.border}`,
-        bgcolor: COLORS.background.white,
-        justifyContent: 'flex-end'
+        bgcolor: COLORS.background.white
       }}>
-        <Button
-          onClick={handleClose}
+        <Button 
+          onClick={handleClose} 
           disabled={loading}
-          size="small"
           sx={{
             height: 32,
             px: 2,
@@ -477,12 +390,11 @@ const AddCollege = ({ open, onClose, onAdd }) => {
         >
           Cancel
         </Button>
-        <Button
-          variant="contained"
-          onClick={handleSubmit}
-          disabled={loading}
-          size="small"
-          startIcon={loading ? <CircularProgress size={16} /> : <AddIcon sx={{ fontSize: '1rem' }} />}
+        <Button 
+          variant="contained" 
+          onClick={handleSubmit} 
+          disabled={loading} 
+          startIcon={loading ? <CircularProgress size={16} /> : <EditIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 32,
             px: 2,
@@ -497,11 +409,11 @@ const AddCollege = ({ open, onClose, onAdd }) => {
             }
           }}
         >
-          {loading ? 'Adding...' : 'Add College'}
+          {loading ? 'Updating...' : 'Update Trainer'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 };
 
-export default AddCollege;
+export default EditTrainer;
