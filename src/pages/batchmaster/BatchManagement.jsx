@@ -33,7 +33,12 @@ import {
   DialogActions,
   List,
   ListItem as MuiListItem,
-  ListItemText as MuiListItemText
+  ListItemText as MuiListItemText,
+  ListItemIcon as MuiListItemIcon,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem as SelectMenuItem
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -54,10 +59,16 @@ import {
   PlayArrow as PlayArrowIcon,
   Upload as UploadIcon,
   AttachFile as AttachFileIcon,
-  Close as CloseIcon
+  Close as CloseIcon,
+  Description as DescriptionIcon,
+  Image as ImageIcon,
+  PictureAsPdf as PictureAsPdfIcon,
+  TableChart as TableChartIcon,
+  SwapHoriz as SwapHorizIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
+import { ACTIONS, hasPermission, MODULES, PAGES } from '../../utils/modulePermissions';
 
 // Import modal components
 import AddBatch from './AddBatch';
@@ -86,38 +97,176 @@ const COLORS = {
   border: '#E2E8F0'
 };
 
+// Loading state component
+const LoadingState = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+    <CircularProgress size={40} sx={{ color: COLORS.primary }} />
+  </Box>
+);
+
+// Access Denied component
+const AccessDenied = () => (
+  <Box sx={{ p: 4, textAlign: 'center' }}>
+    <ScheduleIcon sx={{ fontSize: 64, color: COLORS.text.tertiary, mb: 2 }} />
+    <Typography variant="h6" sx={{ color: COLORS.text.primary, mb: 1, fontWeight: 600 }}>
+      Access Denied
+    </Typography>
+    <Typography variant="body2" sx={{ color: COLORS.text.secondary }}>
+      You don't have permission to view this page. Please contact your administrator.
+    </Typography>
+  </Box>
+);
+
+// Document Viewer Dialog Component
+const DocumentViewerDialog = ({ open, onClose, batch }) => {
+  const [documents, setDocuments] = useState([]);
+
+  useEffect(() => {
+    if (open && batch) {
+      setDocuments(batch.documents || []);
+    }
+  }, [open, batch]);
+
+  const handleDownload = async (document) => {
+    try {
+      if (document.file_url) {
+        window.open(document.file_url, '_blank');
+      }
+    } catch (err) {
+      console.error('Error downloading document:', err);
+    }
+  };
+
+  const getFileIcon = (fileType) => {
+    const type = fileType?.toLowerCase();
+    if (type === 'pdf') {
+      return <PictureAsPdfIcon sx={{ color: '#EF4444' }} />;
+    } else if (type === 'jpg' || type === 'jpeg' || type === 'png' || type === 'gif') {
+      return <ImageIcon sx={{ color: '#10B981' }} />;
+    } else if (type === 'xlsx' || type === 'xls' || type === 'csv') {
+      return <TableChartIcon sx={{ color: '#F59E0B' }} />;
+    } else {
+      return <DescriptionIcon sx={{ color: COLORS.accent }} />;
+    }
+  };
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose}
+      maxWidth="md"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          border: `1px solid ${COLORS.border}`
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        borderBottom: `1px solid ${COLORS.border}`,
+        bgcolor: COLORS.background.tableHeader,
+        color: COLORS.text.light,
+        fontSize: '1rem',
+        fontWeight: 600,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <AttachFileIcon />
+          <Typography sx={{ fontSize: '1rem', fontWeight: 600 }}>
+            Documents - {batch?.name}
+          </Typography>
+        </Stack>
+        <IconButton onClick={onClose} size="small" sx={{ color: COLORS.text.light }}>
+          <CloseIcon />
+        </IconButton>
+      </DialogTitle>
+      
+      <DialogContent sx={{ pt: 3 }}>
+        {documents.length === 0 ? (
+          <Box sx={{ textAlign: 'center', py: 6 }}>
+            <AttachFileIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 2 }} />
+            <Typography sx={{ fontSize: '0.875rem', color: COLORS.text.secondary }}>
+              No documents uploaded yet
+            </Typography>
+            <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.tertiary, mt: 1 }}>
+              Use the upload option in actions menu to add documents
+            </Typography>
+          </Box>
+        ) : (
+          <List sx={{ width: '100%', bgcolor: COLORS.background.white }}>
+            {documents.map((doc, index) => (
+              <MuiListItem
+                key={doc.id}
+                divider={index < documents.length - 1}
+                sx={{
+                  py: 2,
+                  '&:hover': {
+                    bgcolor: COLORS.background.hover
+                  }
+                }}
+                secondaryAction={
+                  <Tooltip title="Download">
+                    <IconButton 
+                      edge="end" 
+                      onClick={() => handleDownload(doc)}
+                      sx={{ color: COLORS.accent }}
+                    >
+                      <DownloadIcon />
+                    </IconButton>
+                  </Tooltip>
+                }
+              >
+                <MuiListItemIcon>
+                  {getFileIcon(doc.file_type)}
+                </MuiListItemIcon>
+                <MuiListItemText
+                  primary={
+                    <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, color: COLORS.text.primary }}>
+                      {doc.file_name}
+                    </Typography>
+                  }
+                  secondary={
+                    <Typography sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
+                      Type: {doc.file_type?.toUpperCase() || 'Unknown'}
+                    </Typography>
+                  }
+                />
+              </MuiListItem>
+            ))}
+          </List>
+        )}
+      </DialogContent>
+      
+      <DialogActions sx={{ px: 3, pb: 3, borderTop: `1px solid ${COLORS.border}`, pt: 2 }}>
+        <Button 
+          onClick={onClose}
+          sx={{
+            fontSize: '0.75rem',
+            textTransform: 'none'
+          }}
+        >
+          Close
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 // Upload Documents Dialog Component
 const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [uploadedDocuments, setUploadedDocuments] = useState([]);
-  const [loadingDocuments, setLoadingDocuments] = useState(false);
 
-  // Fetch uploaded documents for this batch
   useEffect(() => {
     if (open && batch) {
-      fetchDocuments();
+      setUploadedDocuments(batch.documents || []);
     }
   }, [open, batch]);
-
-  const fetchDocuments = async () => {
-    setLoadingDocuments(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${BASE_URL}/batches/documents/${batch.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.data && response.data.documents) {
-        setUploadedDocuments(response.data.documents);
-      }
-    } catch (err) {
-      console.error('Error fetching documents:', err);
-    } finally {
-      setLoadingDocuments(false);
-    }
-  };
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -142,7 +291,7 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
       formData.append('batch_id', batch.id);
       formData.append('file', selectedFile);
 
-      const response = await axios.post(`${BASE_URL}/batches/documents/${batch.id}`, formData, {
+      const response = await axios.post(`${BASE_URL}/batches/upload-document`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -150,15 +299,18 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
       });
 
       if (response.data && response.data.message) {
-        // Refresh documents list
-        await fetchDocuments();
+        if (response.data.document) {
+          setUploadedDocuments(prev => [...prev, response.data.document]);
+        }
+        
         setSelectedFile(null);
         if (onUploadComplete) {
           onUploadComplete(batch.id);
         }
-        // Clear file input
         const fileInput = document.getElementById('file-upload-input');
         if (fileInput) fileInput.value = '';
+        
+        setError('');
       } else {
         throw new Error('Invalid response from server');
       }
@@ -173,21 +325,9 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
 
   const handleDownload = async (document) => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${BASE_URL}/batches/documents/download/${document.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        responseType: 'blob'
-      });
-      
-      // Create download link
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', document.file_name);
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      if (document.file_url) {
+        window.open(document.file_url, '_blank');
+      }
     } catch (err) {
       console.error('Error downloading document:', err);
       setError('Failed to download document');
@@ -203,11 +343,27 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
-      // Refresh documents list
-      await fetchDocuments();
+      setUploadedDocuments(prev => prev.filter(doc => doc.id !== documentId));
+      
+      if (onUploadComplete) {
+        onUploadComplete(batch.id);
+      }
     } catch (err) {
       console.error('Error deleting document:', err);
       setError('Failed to delete document');
+    }
+  };
+
+  const getFileIcon = (fileType) => {
+    const type = fileType?.toLowerCase();
+    if (type === 'pdf') {
+      return <PictureAsPdfIcon sx={{ fontSize: 20, color: '#EF4444' }} />;
+    } else if (type === 'jpg' || type === 'jpeg' || type === 'png' || type === 'gif') {
+      return <ImageIcon sx={{ fontSize: 20, color: '#10B981' }} />;
+    } else if (type === 'xlsx' || type === 'xls' || type === 'csv') {
+      return <TableChartIcon sx={{ fontSize: 20, color: '#F59E0B' }} />;
+    } else {
+      return <DescriptionIcon sx={{ fontSize: 20, color: COLORS.accent }} />;
     }
   };
 
@@ -247,7 +403,6 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
       
       <DialogContent sx={{ pt: 3 }}>
         <Stack spacing={3}>
-          {/* Upload Section */}
           <Paper sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
             <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.accent, mb: 1.5 }}>
               Upload New Document
@@ -313,17 +468,12 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
             </Stack>
           </Paper>
 
-          {/* Uploaded Documents Section */}
           <Paper sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
             <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.accent, mb: 1.5 }}>
-              Uploaded Documents
+              Uploaded Documents ({uploadedDocuments.length})
             </Typography>
             
-            {loadingDocuments ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
-                <CircularProgress size={32} sx={{ color: COLORS.accent }} />
-              </Box>
-            ) : uploadedDocuments.length === 0 ? (
+            {uploadedDocuments.length === 0 ? (
               <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.tertiary, textAlign: 'center', py: 3 }}>
                 No documents uploaded yet
               </Typography>
@@ -360,6 +510,9 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
                       </Stack>
                     }
                   >
+                    <MuiListItemIcon>
+                      {getFileIcon(doc.file_type)}
+                    </MuiListItemIcon>
                     <MuiListItemText
                       primary={
                         <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: COLORS.text.primary }}>
@@ -368,7 +521,7 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
                       }
                       secondary={
                         <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                          Uploaded: {new Date(doc.created_at).toLocaleString()}
+                          Type: {doc.file_type?.toUpperCase() || 'Unknown'}
                         </Typography>
                       }
                     />
@@ -472,12 +625,21 @@ const QRViewDialog = ({ open, onClose, qrData, batchName }) => {
 };
 
 // Pause/Resume Dialog Component
-const PauseResumeDialog = ({ open, onClose, batch, onTogglePause }) => {
+const PauseResumeDialog = ({ open, onClose, batch, onTogglePause, canDelete, canCreate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const isPaused = batch?.is_paused === 1;
 
+  // Check permission based on action
+  // Pause requires DELETE permission, Resume requires CREATE permission
+  const hasPermission = isPaused ? canCreate : canDelete;
+
   const handleSubmit = async () => {
+    if (!hasPermission) {
+      setError(`You don't have permission to ${isPaused ? 'resume' : 'pause'} this batch`);
+      return;
+    }
+
     setLoading(true);
     setError('');
 
@@ -596,6 +758,22 @@ const PauseResumeDialog = ({ open, onClose, batch, onTogglePause }) => {
               </>
             )}
           </Alert>
+
+          {!hasPermission && (
+            <Alert 
+              severity="error" 
+              sx={{ 
+                borderRadius: 1.5, 
+                fontSize: '0.75rem',
+                '& .MuiAlert-icon': {
+                  fontSize: '1.25rem'
+                }
+              }}
+            >
+              You don't have permission to {isPaused ? 'resume' : 'pause'} this batch. 
+              {isPaused ? 'Resume requires CREATE permission.' : 'Pause requires DELETE permission.'}
+            </Alert>
+          )}
         </Stack>
       </DialogContent>
       
@@ -613,7 +791,7 @@ const PauseResumeDialog = ({ open, onClose, batch, onTogglePause }) => {
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={loading}
+          disabled={loading || !hasPermission}
           startIcon={loading ? <CircularProgress size={16} /> : (isPaused ? <PlayArrowIcon /> : <PauseIcon />)}
           sx={{
             bgcolor: isPaused ? COLORS.accent : '#EF4444',
@@ -634,8 +812,312 @@ const PauseResumeDialog = ({ open, onClose, batch, onTogglePause }) => {
   );
 };
 
-// Action Menu Component
-const ActionMenu = ({ batch, onView, onEdit, onDelete, onGenerateQR, onTogglePause, onUploadDocuments }) => {
+// Switch Batch Dialog Component - Updated to fetch users with Trainer role
+const SwitchBatchDialog = ({ open, onClose, batch, onSwitchComplete }) => {
+  const [trainers, setTrainers] = useState([]);
+  const [selectedTrainerId, setSelectedTrainerId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open && batch) {
+      fetchTrainers();
+    }
+  }, [open, batch]);
+
+  const fetchTrainers = async () => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Fetch users from the users endpoint
+      const response = await axios.get(`${BASE_URL}/users`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data && response.data.success && response.data.data) {
+        // Filter users where role name is 'Trainer' (case insensitive)
+        const trainerUsers = response.data.data.filter(
+          user => user.role && user.role.name && user.role.name.toLowerCase() === 'trainer'
+        );
+        
+        // Transform user data to match the expected trainer format
+        const transformedTrainers = trainerUsers.map(user => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          mobile: user.mobile,
+          is_active: user.is_active
+        }));
+        
+        // Filter out the current batch's trainer
+        const filteredTrainers = transformedTrainers.filter(
+          trainer => trainer.id !== batch.trainer_id
+        );
+        
+        setTrainers(filteredTrainers);
+      } else {
+        setTrainers([]);
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+      setError('Failed to load trainers');
+      setTrainers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedTrainerId) {
+      setError('Please select a trainer to switch to');
+      return;
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const token = localStorage.getItem('token');
+      const requestBody = {
+        from_trainer_id: batch.trainer_id,
+        to_user_id: parseInt(selectedTrainerId),
+        batch_id: batch.id
+      };
+
+      const response = await axios.post(`${BASE_URL}/trainer/switch-batch`, requestBody, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data && response.data.message) {
+        onSwitchComplete(batch.id, parseInt(selectedTrainerId));
+        onClose();
+      } else {
+        throw new Error('Invalid response from server');
+      }
+    } catch (err) {
+      console.error('Error switching batch:', err);
+      const errorMessage = err.response?.data?.message || 'Failed to switch batch. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const getCurrentTrainerName = () => {
+    if (batch && batch.trainer) {
+      return batch.trainer;
+    }
+    return 'Unknown';
+  };
+
+  const getSelectedTrainerName = () => {
+    const selected = trainers.find(t => t.id === parseInt(selectedTrainerId));
+    return selected ? selected.name : '';
+  };
+
+  return (
+    <Dialog 
+      open={open} 
+      onClose={onClose}
+      maxWidth="sm"
+      fullWidth
+      PaperProps={{
+        sx: {
+          borderRadius: 2,
+          border: `1px solid ${COLORS.border}`
+        }
+      }}
+    >
+      <DialogTitle sx={{ 
+        borderBottom: `1px solid ${COLORS.border}`,
+        bgcolor: COLORS.background.tableHeader,
+        color: COLORS.text.light,
+        fontSize: '1rem',
+        fontWeight: 600,
+        py: 2
+      }}>
+        <Stack direction="row" spacing={1.5} alignItems="center">
+          <SwapHorizIcon />
+          <Typography sx={{ fontSize: '1rem', fontWeight: 600 }}>
+            Switch Batch Trainer
+          </Typography>
+        </Stack>
+      </DialogTitle>
+      
+      <DialogContent sx={{ pt: 3 }}>
+        <Stack spacing={3}>
+          <Paper sx={{ p: 2, bgcolor: COLORS.background.light, borderRadius: 1.5 }}>
+            <Typography variant="subtitle2" sx={{ fontSize: '0.7rem', color: COLORS.text.secondary, mb: 0.5 }}>
+              Batch Information
+            </Typography>
+            <Typography sx={{ fontSize: '0.85rem', fontWeight: 600, color: COLORS.text.primary }}>
+              {batch?.name}
+            </Typography>
+            <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
+              Domain: {batch?.domainName}
+            </Typography>
+            <Stack direction="row" spacing={2} sx={{ mt: 1, pt: 1, borderTop: `1px dashed ${COLORS.border}` }}>
+              <Box>
+                <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                  Current Trainer
+                </Typography>
+                <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.text.primary }}>
+                  {getCurrentTrainerName()}
+                </Typography>
+              </Box>
+              <Box>
+                <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                  Batch Strength
+                </Typography>
+                <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.text.primary }}>
+                  {batch?.strength} Students
+                </Typography>
+              </Box>
+            </Stack>
+          </Paper>
+
+          <Paper sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
+            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.accent, mb: 2 }}>
+              Select New Trainer
+            </Typography>
+
+            {loading ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}>
+                <CircularProgress size={32} sx={{ color: COLORS.accent }} />
+              </Box>
+            ) : (
+              <FormControl fullWidth size="small">
+                <InputLabel>Select Trainer</InputLabel>
+                <Select
+                  value={selectedTrainerId}
+                  onChange={(e) => setSelectedTrainerId(e.target.value)}
+                  label="Select Trainer"
+                  sx={{
+                    borderRadius: 1.5,
+                    fontSize: '0.75rem',
+                    '& .MuiSelect-select': {
+                      fontSize: '0.75rem'
+                    }
+                  }}
+                >
+                  {trainers.length === 0 ? (
+                    <SelectMenuItem disabled value="">
+                      <Typography sx={{ fontSize: '0.75rem' }}>
+                        No other trainers available
+                      </Typography>
+                    </SelectMenuItem>
+                  ) : (
+                    trainers.map((trainer) => (
+                      <SelectMenuItem key={trainer.id} value={trainer.id}>
+                        <Stack direction="row" spacing={1} alignItems="center">
+                          <PersonIcon sx={{ fontSize: 16, color: COLORS.accent }} />
+                          <Box>
+                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 500 }}>
+                              {trainer.name}
+                            </Typography>
+                            <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                              {trainer.email}
+                            </Typography>
+                          </Box>
+                        </Stack>
+                      </SelectMenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+            )}
+
+            {selectedTrainerId && !loading && (
+              <Alert 
+                severity="info" 
+                sx={{ 
+                  mt: 2, 
+                  borderRadius: 1.5, 
+                  fontSize: '0.7rem',
+                  '& .MuiAlert-icon': {
+                    fontSize: '1rem'
+                  }
+                }}
+              >
+                <Typography variant="body2" sx={{ fontSize: '0.7rem' }}>
+                  This batch will be transferred from <strong>{getCurrentTrainerName()}</strong> to <strong>{getSelectedTrainerName()}</strong>
+                </Typography>
+              </Alert>
+            )}
+
+            {error && (
+              <Alert 
+                severity="error" 
+                sx={{ 
+                  mt: 2,
+                  borderRadius: 1.5, 
+                  fontSize: '0.75rem',
+                  '& .MuiAlert-icon': {
+                    fontSize: '1.25rem'
+                  }
+                }}
+              >
+                {error}
+              </Alert>
+            )}
+          </Paper>
+
+          <Alert 
+            severity="warning" 
+            sx={{ 
+              borderRadius: 1.5, 
+              fontSize: '0.75rem',
+              '& .MuiAlert-icon': {
+                fontSize: '1.25rem'
+              }
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+              Important Note
+            </Typography>
+            <Typography variant="body2" sx={{ fontSize: '0.7rem' }}>
+              Switching the trainer will update all future sessions and attendance records for this batch to the new trainer.
+              This action cannot be undone.
+            </Typography>
+          </Alert>
+        </Stack>
+      </DialogContent>
+      
+      <DialogActions sx={{ px: 3, pb: 3, borderTop: `1px solid ${COLORS.border}`, pt: 2 }}>
+        <Button 
+          onClick={onClose}
+          disabled={submitting}
+          sx={{
+            fontSize: '0.75rem',
+            textTransform: 'none'
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleSubmit}
+          disabled={submitting || !selectedTrainerId || loading}
+          startIcon={submitting ? <CircularProgress size={16} /> : <SwapHorizIcon />}
+          sx={{
+            bgcolor: COLORS.accent,
+            textTransform: 'none',
+            fontSize: '0.75rem',
+            '&:hover': {
+              bgcolor: COLORS.primary
+            }
+          }}
+        >
+          {submitting ? 'Switching...' : 'Switch Trainer'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+// Action Menu Component with permission checks
+const ActionMenu = ({ batch, onView, onEdit, onDelete, onGenerateQR, onTogglePause, onUploadDocuments, onSwitchBatch, canView, canUpdate, canDelete, canCreate }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
   const isPaused = batch?.is_paused === 1;
@@ -647,6 +1129,13 @@ const ActionMenu = ({ batch, onView, onEdit, onDelete, onGenerateQR, onTogglePau
   const handleClose = () => {
     setAnchorEl(null);
   };
+
+  // Check if there's ANY action available
+  const hasAnyAction = canView || canUpdate || canDelete || canCreate;
+
+  if (!hasAnyAction) {
+    return null;
+  }
 
   return (
     <>
@@ -679,118 +1168,178 @@ const ActionMenu = ({ batch, onView, onEdit, onDelete, onGenerateQR, onTogglePau
           }
         }}
       >
-        <MenuItem 
-          onClick={() => {
-            onView(batch);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <ViewIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              View Details
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {canView && (
+          <MenuItem 
+            onClick={() => {
+              onView(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <ViewIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                View Details
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
         
-        <MenuItem 
-          onClick={() => {
-            onEdit(batch);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              Edit
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {canUpdate && (
+          <MenuItem 
+            onClick={() => {
+              onEdit(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                Edit
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
 
-        {/* Upload Documents Menu Item */}
-        <MenuItem 
-          onClick={() => {
-            onUploadDocuments(batch);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <UploadIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              Upload Documents
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* Upload Documents - Requires CREATE permission */}
+        {canCreate && (
+          <MenuItem 
+            onClick={() => {
+              onUploadDocuments(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <UploadIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                Upload Documents
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
 
-        {/* Pause/Resume Menu Item */}
-        <MenuItem 
-          onClick={() => {
-            onTogglePause(batch);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: isPaused ? '#10B981' : '#EF4444', minWidth: 36 }}>
-            {isPaused ? <PlayArrowIcon fontSize="small" /> : <PauseIcon fontSize="small" />}
-          </ListItemIcon>
-          <ListItemText>
-            <Typography 
-              variant="body2" 
-              fontWeight={500} 
-              sx={{ 
-                color: isPaused ? '#10B981' : '#EF4444', 
-                fontSize: '0.75rem' 
-              }}
-            >
-              {isPaused ? 'Resume Batch' : 'Pause Batch'}
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* Switch Batch - Requires CREATE permission */}
+        {canCreate && (
+          <MenuItem 
+            onClick={() => {
+              onSwitchBatch(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <SwapHorizIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                Switch Batch
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
 
-        <MenuItem 
-          onClick={() => {
-            onGenerateQR(batch);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <QrCodeIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              Generate QR
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* Generate QR - Requires CREATE permission */}
+        {canCreate && (
+          <MenuItem 
+            onClick={() => {
+              onGenerateQR(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <QrCodeIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                Generate QR
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
+
+        {/* Pause Batch - Only show if batch is NOT paused AND user has DELETE permission */}
+        {!isPaused && canDelete && (
+          <MenuItem 
+            onClick={() => {
+              onTogglePause(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
+              <PauseIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography 
+                variant="body2" 
+                fontWeight={500} 
+                sx={{ 
+                  color: '#EF4444', 
+                  fontSize: '0.75rem' 
+                }}
+              >
+                Pause Batch
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
+
+        {/* Resume Batch - Only show if batch IS paused AND user has CREATE permission */}
+        {isPaused && canCreate && (
+          <MenuItem 
+            onClick={() => {
+              onTogglePause(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: '#10B981', minWidth: 36 }}>
+              <PlayArrowIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography 
+                variant="body2" 
+                fontWeight={500} 
+                sx={{ 
+                  color: '#10B981', 
+                  fontSize: '0.75rem' 
+                }}
+              >
+                Resume Batch
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
         
-        <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
+        {(canView || canUpdate || canCreate) && canDelete && <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />}
         
-        <MenuItem 
-          onClick={() => {
-            onDelete(batch);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
-              Delete
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {canDelete && (
+          <MenuItem 
+            onClick={() => {
+              onDelete(batch);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
+              <DeleteIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
+                Delete
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
       </Menu>
     </>
   );
@@ -848,6 +1397,11 @@ const BatchManagement = () => {
     severity: 'success'
   });
 
+  // User permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
   // Server-side pagination states
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -860,14 +1414,55 @@ const BatchManagement = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [openPauseResumeDialog, setOpenPauseResumeDialog] = useState(false);
   const [openUploadDocumentsDialog, setOpenUploadDocumentsDialog] = useState(false);
+  const [openDocumentViewerDialog, setOpenDocumentViewerDialog] = useState(false);
+  const [openSwitchBatchDialog, setOpenSwitchBatchDialog] = useState(false);
   const [selectedBatch, setSelectedBatch] = useState(null);
 
   // QR Dialog states
   const [openQRDialog, setOpenQRDialog] = useState(false);
   const [selectedQRData, setSelectedQRData] = useState(null);
 
+  // Fetch user permissions from API
+  useEffect(() => {
+    const fetchUserPermissions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${BASE_URL}/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.data.success) {
+          const userData = response.data.data;
+          setIsSuperAdmin(userData.is_super_admin || false);
+          setUserPermissions(userData.permissions || []);
+        }
+      } catch (err) {
+        console.error('Error fetching user permissions:', err);
+        setUserPermissions([]);
+      } finally {
+        setPermissionsLoaded(true);
+      }
+    };
+    
+    fetchUserPermissions();
+  }, []);
+
+  // Helper to check permission
+  const checkPermission = (action) => {
+    if (isSuperAdmin) return true;
+    return hasPermission(userPermissions, MODULES.BATCH_MANAGEMENT, PAGES.BATCH_MANAGEMENT, action);
+  };
+
+  // Permission checks
+  const canView = checkPermission(ACTIONS.VIEW);
+  const canCreate = checkPermission(ACTIONS.CREATE);
+  const canUpdate = checkPermission(ACTIONS.UPDATE);
+  const canDelete = checkPermission(ACTIONS.DELETE);
+
   // Load batches from API with pagination and search
   const loadBatchesFromAPI = useCallback(async () => {
+    if (!canView && !isSuperAdmin) return;
+    
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -885,7 +1480,6 @@ const BatchManagement = () => {
       });
 
       if (response.data && response.data.data) {
-        // Transform API response to match component structure
         const transformedBatches = response.data.data.map(batch => ({
           id: batch.id,
           name: batch.name || batch.domain?.name || 'Unnamed Batch',
@@ -897,13 +1491,15 @@ const BatchManagement = () => {
           endTime: batch.end_time,
           strength: batch.strength,
           trainer: batch.trainer_name,
+          trainer_id: batch.trainer_id,
           latitude: batch.latitude,
           longitude: batch.longitude,
           radius: batch.radius,
           createdAt: batch.created_at,
           updatedAt: batch.updated_at,
           qr: batch.qr,
-          is_paused: batch.is_paused || 0
+          is_paused: batch.is_paused || 0,
+          documents: batch.documents || []
         }));
         
         setBatches(transformedBatches);
@@ -923,12 +1519,14 @@ const BatchManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, rowsPerPage, searchTerm]);
+  }, [currentPage, rowsPerPage, searchTerm, canView, isSuperAdmin]);
 
   // Load batches when dependencies change
   useEffect(() => {
-    loadBatchesFromAPI();
-  }, [loadBatchesFromAPI]);
+    if (permissionsLoaded && (canView || isSuperAdmin)) {
+      loadBatchesFromAPI();
+    }
+  }, [loadBatchesFromAPI, permissionsLoaded, canView, isSuperAdmin]);
 
   // Debounce search
   useEffect(() => {
@@ -985,10 +1583,28 @@ const BatchManagement = () => {
     showNotification(`Batch ${newPauseStatus ? 'paused' : 'resumed'} successfully!`, 'success');
   };
 
+  // Handle switch batch
+  const handleSwitchBatch = (batchId, newTrainerId) => {
+    loadBatchesFromAPI();
+    showNotification('Batch switched successfully!', 'success');
+  };
+
   // Handle upload documents
   const handleUploadDocuments = (batch) => {
     setSelectedBatch(batch);
     setOpenUploadDocumentsDialog(true);
+  };
+
+  // Handle view documents
+  const handleViewDocuments = (batch) => {
+    setSelectedBatch(batch);
+    setOpenDocumentViewerDialog(true);
+  };
+
+  // Handle switch batch
+  const handleSwitchBatchClick = (batch) => {
+    setSelectedBatch(batch);
+    setOpenSwitchBatchDialog(true);
   };
 
   // Handle upload complete
@@ -1054,6 +1670,8 @@ const BatchManagement = () => {
 
   // Handle select all on current page
   const handleSelectAll = (event) => {
+    if (!canDelete) return;
+    
     if (event.target.checked) {
       setSelected(batches.map(batch => batch.id));
     } else {
@@ -1063,6 +1681,8 @@ const BatchManagement = () => {
 
   // Handle single selection
   const handleSelect = (id) => {
+    if (!canDelete) return;
+    
     const selectedIndex = selected.indexOf(id);
     let newSelected = [];
     
@@ -1077,7 +1697,7 @@ const BatchManagement = () => {
 
   // Handle bulk delete
   const handleBulkDelete = async () => {
-    if (selected.length === 0) return;
+    if (!canDelete || selected.length === 0) return;
     
     setLoading(true);
     try {
@@ -1170,6 +1790,16 @@ const BatchManagement = () => {
     });
   };
 
+  // Show loading state while permissions are being fetched
+  if (!permissionsLoaded) {
+    return <LoadingState />;
+  }
+
+  // If user doesn't have view permission, show access denied
+  if (!canView && !isSuperAdmin) {
+    return <AccessDenied />;
+  }
+
   return (
     <Box>
       {/* Page Header */}
@@ -1239,24 +1869,12 @@ const BatchManagement = () => {
                 }
               }}
             />
-            {searchTerm && (
-              <Chip 
-                label={`Search: ${searchTerm}`}
-                size="small"
-                onDelete={() => {
-                  setSearchInput('');
-                  setSearchTerm('');
-                  setCurrentPage(1);
-                  setPage(0);
-                }}
-                sx={{ height: 28, fontSize: '0.7rem' }}
-              />
-            )}
           </Stack>
 
           {/* Action Buttons */}
           <Stack direction="row" spacing={1.5} alignItems="center">
-            {selected.length > 0 && (
+            {/* Bulk Delete Button - Only show if user has delete permission */}
+            {canDelete && selected.length > 0 && (
               <Button
                 variant="outlined"
                 color="error"
@@ -1281,7 +1899,8 @@ const BatchManagement = () => {
               </Button>
             )}
             
-            <Button
+            {/* Refresh Button */}
+            {/* <Button
               variant="outlined"
               startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
               onClick={handleRefresh}
@@ -1302,28 +1921,31 @@ const BatchManagement = () => {
               }}
             >
               Refresh
-            </Button>
+            </Button> */}
 
-            <Button
-              variant="contained"
-              startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
-              onClick={() => setOpenAddModal(true)}
-              disabled={loading}
-              sx={{
-                height: 36,
-                borderRadius: 1.5,
-                bgcolor: COLORS.primary,
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                textTransform: 'none',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  bgcolor: COLORS.primaryDark,
-                }
-              }}
-            >
-              Add Batch
-            </Button>
+            {/* Add Batch Button - Only show if user has create permission */}
+            {canCreate && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
+                onClick={() => setOpenAddModal(true)}
+                disabled={loading}
+                sx={{
+                  height: 36,
+                  borderRadius: 1.5,
+                  bgcolor: COLORS.primary,
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                  '&:hover': {
+                    bgcolor: COLORS.primaryDark,
+                  }
+                }}
+              >
+                Add Batch
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Paper>
@@ -1347,25 +1969,27 @@ const BatchManagement = () => {
                   py: 1.5
                 }
               }}>
-                <TableCell padding="checkbox" sx={{ width: 40 }}>
-                  <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < batches.length}
-                    checked={batches.length > 0 && selected.length === batches.length}
-                    onChange={handleSelectAll}
-                    sx={{
-                      color: COLORS.text.light,
-                      '&.Mui-checked': {
+                {canDelete && (
+                  <TableCell padding="checkbox" sx={{ width: 40 }}>
+                    <Checkbox
+                      indeterminate={selected.length > 0 && selected.length < batches.length}
+                      checked={batches.length > 0 && selected.length === batches.length}
+                      onChange={handleSelectAll}
+                      sx={{
                         color: COLORS.text.light,
-                      },
-                      '&.MuiCheckbox-indeterminate': {
-                        color: COLORS.text.light,
-                      },
-                      '& .MuiSvgIcon-root': {
-                        fontSize: '1.25rem'
-                      }
-                    }}
-                  />
-                </TableCell>
+                        '&.Mui-checked': {
+                          color: COLORS.text.light,
+                        },
+                        '&.MuiCheckbox-indeterminate': {
+                          color: COLORS.text.light,
+                        },
+                        '& .MuiSvgIcon-root': {
+                          fontSize: '1.25rem'
+                        }
+                      }}
+                    />
+                  </TableCell>
+                )}
                 <TableCell sx={{ 
                   fontWeight: 600, 
                   fontSize: '0.7rem',
@@ -1410,6 +2034,14 @@ const BatchManagement = () => {
                   fontWeight: 600, 
                   fontSize: '0.7rem',
                   letterSpacing: '0.5px',
+                  color: COLORS.text.light
+                }}>
+                  Documents
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600, 
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.5px',
                   color: COLORS.text.light,
                   width: 100
                 }}>
@@ -1429,7 +2061,7 @@ const BatchManagement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={canDelete ? 9 : 8} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
                       Loading batches...
@@ -1438,7 +2070,7 @@ const BatchManagement = () => {
                 </TableRow>
               ) : batches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={canDelete ? 9 : 8} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <ScheduleIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
@@ -1457,6 +2089,7 @@ const BatchManagement = () => {
                   const hasLocation = batch.latitude && batch.longitude;
                   const hasQR = batch.qr && batch.qr.qr_image_url;
                   const isPaused = batch.is_paused === 1;
+                  const documentCount = batch.documents?.length || 0;
 
                   return (
                     <TableRow
@@ -1482,21 +2115,23 @@ const BatchManagement = () => {
                         }
                       }}
                     >
-                      <TableCell padding="checkbox" sx={{ width: 40 }}>
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={() => handleSelect(batch.id)}
-                          sx={{
-                            color: COLORS.accent,
-                            '&.Mui-checked': {
+                      {canDelete && (
+                        <TableCell padding="checkbox" sx={{ width: 40 }}>
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={() => handleSelect(batch.id)}
+                            sx={{
                               color: COLORS.accent,
-                            },
-                            '& .MuiSvgIcon-root': {
-                              fontSize: '1.25rem'
-                            }
-                          }}
-                        />
-                      </TableCell>
+                              '&.Mui-checked': {
+                                color: COLORS.accent,
+                              },
+                              '& .MuiSvgIcon-root': {
+                                fontSize: '1.25rem'
+                              }
+                            }}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Stack direction="row" spacing={1.5} alignItems="center">
                           <Avatar 
@@ -1572,6 +2207,26 @@ const BatchManagement = () => {
                           </Typography>
                         )}
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="text"
+                          size="small"
+                          startIcon={<AttachFileIcon sx={{ fontSize: 16 }} />}
+                          onClick={() => handleViewDocuments(batch)}
+                          sx={{
+                            textTransform: 'none',
+                            fontSize: '0.7rem',
+                            fontWeight: 500,
+                            color: COLORS.accent,
+                            '&:hover': {
+                              bgcolor: `${COLORS.accent}10`,
+                              color: COLORS.primary
+                            }
+                          }}
+                        >
+                          View Documents {documentCount > 0 && `(${documentCount})`}
+                        </Button>
+                      </TableCell>
                       <TableCell sx={{ width: 100 }}>
                         {hasQR ? (
                           <Box 
@@ -1615,6 +2270,11 @@ const BatchManagement = () => {
                           onGenerateQR={handleGenerateQR}
                           onTogglePause={(b) => { setSelectedBatch(b); setOpenPauseResumeDialog(true); }}
                           onUploadDocuments={(b) => { handleUploadDocuments(b); }}
+                          onSwitchBatch={(b) => { handleSwitchBatchClick(b); }}
+                          canView={canView}
+                          canUpdate={canUpdate}
+                          canDelete={canDelete}
+                          canCreate={canCreate}
                         />
                       </TableCell>
                     </TableRow>
@@ -1650,24 +2310,28 @@ const BatchManagement = () => {
         />
       </Paper>
 
-      {/* Modal Components */}
-      <AddBatch 
-        open={openAddModal}
-        onClose={() => setOpenAddModal(false)}
-        onAdd={handleAddBatch}
-      />
+      {/* Modal Components - Only render if user has appropriate permissions */}
+      {canCreate && (
+        <AddBatch 
+          open={openAddModal}
+          onClose={() => setOpenAddModal(false)}
+          onAdd={handleAddBatch}
+        />
+      )}
 
       {selectedBatch && (
         <>
-          <EditBatch 
-            open={openEditModal}
-            onClose={() => {
-              setOpenEditModal(false);
-              setSelectedBatch(null);
-            }}
-            batch={selectedBatch}
-            onUpdate={handleEditBatch}
-          />
+          {canUpdate && (
+            <EditBatch 
+              open={openEditModal}
+              onClose={() => {
+                setOpenEditModal(false);
+                setSelectedBatch(null);
+              }}
+              batch={selectedBatch}
+              onUpdate={handleEditBatch}
+            />
+          )}
 
           <ViewBatch 
             open={openViewModal}
@@ -1682,16 +2346,19 @@ const BatchManagement = () => {
             }}
           />
 
-          <DeleteBatch 
-            open={openDeleteDialog}
-            onClose={() => {
-              setOpenDeleteDialog(false);
-              setSelectedBatch(null);
-            }}
-            batch={selectedBatch}
-            onDelete={handleDeleteBatch}
-          />
+          {canDelete && (
+            <DeleteBatch 
+              open={openDeleteDialog}
+              onClose={() => {
+                setOpenDeleteDialog(false);
+                setSelectedBatch(null);
+              }}
+              batch={selectedBatch}
+              onDelete={handleDeleteBatch}
+            />
+          )}
 
+          {/* Pause/Resume Dialog - Pass both permissions */}
           <PauseResumeDialog 
             open={openPauseResumeDialog}
             onClose={() => {
@@ -1700,17 +2367,44 @@ const BatchManagement = () => {
             }}
             batch={selectedBatch}
             onTogglePause={handleTogglePause}
+            canDelete={canDelete}
+            canCreate={canCreate}
           />
 
-          <UploadDocumentsDialog 
-            open={openUploadDocumentsDialog}
+          {/* Upload Documents - Requires CREATE permission */}
+          {canCreate && (
+            <UploadDocumentsDialog 
+              open={openUploadDocumentsDialog}
+              onClose={() => {
+                setOpenUploadDocumentsDialog(false);
+                setSelectedBatch(null);
+              }}
+              batch={selectedBatch}
+              onUploadComplete={handleUploadComplete}
+            />
+          )}
+
+          <DocumentViewerDialog 
+            open={openDocumentViewerDialog}
             onClose={() => {
-              setOpenUploadDocumentsDialog(false);
+              setOpenDocumentViewerDialog(false);
               setSelectedBatch(null);
             }}
             batch={selectedBatch}
-            onUploadComplete={handleUploadComplete}
           />
+
+          {/* Switch Batch - Requires CREATE permission */}
+          {canCreate && (
+            <SwitchBatchDialog 
+              open={openSwitchBatchDialog}
+              onClose={() => {
+                setOpenSwitchBatchDialog(false);
+                setSelectedBatch(null);
+              }}
+              batch={selectedBatch}
+              onSwitchComplete={handleSwitchBatch}
+            />
+          )}
         </>
       )}
 

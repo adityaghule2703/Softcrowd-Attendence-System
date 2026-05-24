@@ -53,6 +53,7 @@ import {
 import { CheckCircle, XCircle } from 'lucide-react';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
+import { ACTIONS, hasPermission, MODULES, PAGES } from '../../utils/modulePermissions';
 
 // Import modal components
 import AddTrainer from './AddTrainer';
@@ -81,204 +82,28 @@ const COLORS = {
   border: '#E2E8F0'
 };
 
-// Assign Batch Dialog Component
-const AssignBatchDialog = ({ open, onClose, trainer, batches, onAssign }) => {
-  const [selectedBatch, setSelectedBatch] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [assignedBatches, setAssignedBatches] = useState(trainer?.batches || []);
+// Loading state component
+const LoadingState = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+    <CircularProgress size={40} sx={{ color: COLORS.primary }} />
+  </Box>
+);
 
-  useEffect(() => {
-    if (trainer) {
-      setAssignedBatches(trainer.batches || []);
-    }
-  }, [trainer]);
+// Access Denied component
+const AccessDenied = () => (
+  <Box sx={{ p: 4, textAlign: 'center' }}>
+    <PeopleIcon sx={{ fontSize: 64, color: COLORS.text.tertiary, mb: 2 }} />
+    <Typography variant="h6" sx={{ color: COLORS.text.primary, mb: 1, fontWeight: 600 }}>
+      Access Denied
+    </Typography>
+    <Typography variant="body2" sx={{ color: COLORS.text.secondary }}>
+      You don't have permission to view this page. Please contact your administrator.
+    </Typography>
+  </Box>
+);
 
-  const handleAssign = async () => {
-    if (!selectedBatch) {
-      setError('Please select a batch');
-      return;
-    }
-
-    if (assignedBatches.some(b => b.id === selectedBatch.id)) {
-      setError('This batch is already assigned to the trainer');
-      return;
-    }
-
-    setLoading(true);
-    setError('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${BASE_URL}/assign-trainer-batch`, {
-        trainer_id: trainer.id,
-        batch_id: selectedBatch.id
-      }, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.data && response.data.data) {
-        const updatedBatches = [...assignedBatches, selectedBatch];
-        setAssignedBatches(updatedBatches);
-        onAssign(trainer.id, updatedBatches);
-        setSelectedBatch(null);
-      }
-    } catch (err) {
-      console.error('Error assigning batch:', err);
-      setError(err.response?.data?.message || 'Failed to assign batch. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleRemoveBatch = async (batchId) => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${BASE_URL}/assign-trainer-batch/${batchId}`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        data: { trainer_id: trainer.id }
-      });
-
-      const updatedBatches = assignedBatches.filter(b => b.id !== batchId);
-      setAssignedBatches(updatedBatches);
-      onAssign(trainer.id, updatedBatches);
-    } catch (err) {
-      console.error('Error removing batch:', err);
-      setError(err.response?.data?.message || 'Failed to remove batch. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const availableBatches = batches.filter(
-    batch => !assignedBatches.some(assigned => assigned.id === batch.id)
-  );
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle sx={{ borderBottom: `1px solid ${COLORS.border}`, pb: 2, mb: 2 }}>
-        <Typography sx={{ fontSize: '1.1rem', fontWeight: 600, color: COLORS.text.primary }}>
-          Manage Batches for {trainer?.name}
-        </Typography>
-      </DialogTitle>
-      
-      <DialogContent sx={{ pt: 3 }}>
-        <Stack spacing={3}>
-          {assignedBatches.length > 0 && (
-            <Box>
-              <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.text.secondary, mb: 1.5 }}>
-                Assigned Batches
-              </Typography>
-              <Paper variant="outlined" sx={{ borderRadius: 1.5, overflow: 'hidden' }}>
-                <List dense disablePadding>
-                  {assignedBatches.map((batch, index) => (
-                    <ListItem
-                      key={batch.id}
-                      divider={index < assignedBatches.length - 1}
-                      sx={{ py: 1.5 }}
-                    >
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                          Batch #{batch.id} - {batch.trainer_name || batch.domain?.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                          📅 {batch.start_date} to {batch.end_date} | ⏰ {batch.start_time} - {batch.end_time}
-                        </Typography>
-                      </Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRemoveBatch(batch.id)}
-                        sx={{ color: '#EF4444' }}
-                        disabled={loading}
-                      >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    </ListItem>
-                  ))}
-                </List>
-              </Paper>
-            </Box>
-          )}
-
-          <Box>
-            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.text.secondary, mb: 1.5 }}>
-              Add New Batch
-            </Typography>
-            <Stack direction="row" spacing={2} alignItems="flex-start">
-              <Box sx={{ flex: 1 }}>
-                <Autocomplete
-                  fullWidth
-                  options={availableBatches}
-                  value={selectedBatch}
-                  onChange={(event, newValue) => {
-                    setSelectedBatch(newValue);
-                    setError('');
-                  }}
-                  getOptionLabel={(option) => `Batch #${option.id} - ${option.trainer_name || option.domain?.name}`}
-                  isOptionEqualToValue={(option, value) => option.id === value.id}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      size="small"
-                      placeholder="Search and select batch"
-                      error={!!error}
-                      helperText={error}
-                      sx={{
-                        '& .MuiOutlinedInput-root': {
-                          borderRadius: 1.5,
-                          fontSize: '0.75rem',
-                          '&:hover fieldset': { borderColor: COLORS.accent },
-                          '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
-                        }
-                      }}
-                    />
-                  )}
-                  renderOption={(props, option) => (
-                    <li {...props}>
-                      <Box>
-                        <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
-                          Batch #{option.id} - {option.trainer_name || option.domain?.name}
-                        </Typography>
-                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                          📅 {option.start_date} to {option.end_date} | ⏰ {option.start_time} - {option.end_time}
-                        </Typography>
-                      </Box>
-                    </li>
-                  )}
-                />
-              </Box>
-              <Button
-                variant="contained"
-                onClick={handleAssign}
-                disabled={loading || !selectedBatch}
-                startIcon={loading ? <CircularProgress size={16} /> : <AssignmentIcon />}
-                sx={{
-                  height: 40,
-                  minWidth: 100,
-                  borderRadius: 1.5,
-                  bgcolor: COLORS.accent,
-                  textTransform: 'none',
-                  fontSize: '0.75rem',
-                  '&:hover': { bgcolor: COLORS.primary }
-                }}
-              >
-                {loading ? 'Adding...' : 'Add Batch'}
-              </Button>
-            </Stack>
-          </Box>
-        </Stack>
-      </DialogContent>
-      
-      <DialogActions sx={{ px: 3, pb: 3, borderTop: `1px solid ${COLORS.border}`, pt: 2 }}>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
-
-// Action Menu Component
-const ActionMenu = ({ trainer, onView, onEdit, onDelete, onAssignBatch }) => {
+// Action Menu Component with permission checks
+const ActionMenu = ({ trainer, onView, onEdit, onDelete, canView, canUpdate, canDelete: canDeletePermission }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -289,6 +114,13 @@ const ActionMenu = ({ trainer, onView, onEdit, onDelete, onAssignBatch }) => {
   const handleClose = () => {
     setAnchorEl(null);
   };
+
+  // Check if there's ANY action available (including VIEW)
+  const hasAnyAction = canView || canUpdate || canDeletePermission;
+
+  if (!hasAnyAction) {
+    return null;
+  }
 
   return (
     <>
@@ -321,124 +153,77 @@ const ActionMenu = ({ trainer, onView, onEdit, onDelete, onAssignBatch }) => {
           }
         }}
       >
-        <MenuItem 
-          onClick={() => {
-            onView(trainer);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <ViewIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              View Details
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* View Details - Always show if user has VIEW permission */}
+        {canView && (
+          <MenuItem 
+            onClick={() => {
+              onView(trainer);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <ViewIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                View Details
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
         
-        <MenuItem 
-          onClick={() => {
-            onEdit(trainer);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              Edit
-            </Typography>
-          </ListItemText>
-        </MenuItem>
-
-        <MenuItem 
-          onClick={() => {
-            onAssignBatch(trainer);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <AssignmentIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              Manage Batches
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* Edit - Only show if user has UPDATE permission */}
+        {canUpdate && (
+          <MenuItem 
+            onClick={() => {
+              onEdit(trainer);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                Edit
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
         
-        <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
+        {/* Divider - Only show if there are multiple sections */}
+        {((canView && (canUpdate || canDeletePermission)) || (canUpdate && canDeletePermission)) && (
+          <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
+        )}
         
-        <MenuItem 
-          onClick={() => {
-            onDelete(trainer);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
-              Delete
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* Delete - Only show if user has DELETE permission */}
+        {canDeletePermission && (
+          <MenuItem 
+            onClick={() => {
+              onDelete(trainer);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
+              <DeleteIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
+                Delete
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
       </Menu>
     </>
   );
 };
 
-// Batch Chip Component
-const BatchChip = ({ batches }) => {
-  const count = batches?.length || 0;
-  
-  if (count === 0) {
-    return (
-      <Chip
-        label="No Batches"
-        size="small"
-        icon={<XCircle size={14} />}
-        sx={{
-          bgcolor: '#FEE2E2',
-          color: '#EF4444',
-          fontSize: '0.65rem',
-          fontWeight: 600,
-          height: 24,
-          '& .MuiChip-label': { px: 1.5 },
-          '& .MuiChip-icon': { color: '#EF4444', marginLeft: '6px' }
-        }}
-      />
-    );
-  }
-  
-  return (
-    <Chip
-      label={`${count} Batch${count > 1 ? 'es' : ''}`}
-      size="small"
-      icon={<CheckCircle size={14} />}
-      sx={{
-        bgcolor: '#D1FAE5',
-        color: '#10B981',
-        fontSize: '0.65rem',
-        fontWeight: 600,
-        height: 24,
-        '& .MuiChip-label': { px: 1.5 },
-        '& .MuiChip-icon': { color: '#10B981', marginLeft: '6px' }
-      }}
-    />
-  );
-};
-
 const Trainers = () => {
   const [trainers, setTrainers] = useState([]);
-  const [batches, setBatches] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -451,6 +236,11 @@ const Trainers = () => {
     severity: 'success'
   });
 
+  // User permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
   // Server-side pagination states
   const [totalCount, setTotalCount] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -461,27 +251,49 @@ const Trainers = () => {
   const [openEditModal, setOpenEditModal] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [openAssignBatchDialog, setOpenAssignBatchDialog] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState(null);
 
-  // Load batches from API
-  const loadBatchesFromAPI = useCallback(async () => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${BASE_URL}/batches`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (response.data && response.data.data) {
-        setBatches(response.data.data);
+  // Fetch user permissions from API
+  useEffect(() => {
+    const fetchUserPermissions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${BASE_URL}/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.data.success) {
+          const userData = response.data.data;
+          setIsSuperAdmin(userData.is_super_admin || false);
+          setUserPermissions(userData.permissions || []);
+        }
+      } catch (err) {
+        console.error('Error fetching user permissions:', err);
+        setUserPermissions([]);
+      } finally {
+        setPermissionsLoaded(true);
       }
-    } catch (error) {
-      console.error('Error loading batches:', error);
-    }
+    };
+    
+    fetchUserPermissions();
   }, []);
+
+  // Helper to check permission
+  const checkPermission = (action) => {
+    if (isSuperAdmin) return true;
+    return hasPermission(userPermissions, MODULES.TRAINERS, PAGES.TRAINERS, action);
+  };
+
+  // Permission checks
+  const canView = checkPermission(ACTIONS.VIEW);
+  const canCreate = checkPermission(ACTIONS.CREATE);
+  const canUpdate = checkPermission(ACTIONS.UPDATE);
+  const canDelete = checkPermission(ACTIONS.DELETE);
 
   // Load trainers from API with pagination and search
   const loadTrainersFromAPI = useCallback(async () => {
+    if (!canView && !isSuperAdmin) return;
+    
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -499,14 +311,12 @@ const Trainers = () => {
       });
 
       if (response.data && response.data.data) {
-        // Transform API response to match component structure
         const transformedTrainers = response.data.data.map(trainer => ({
           id: trainer.id,
           name: trainer.name,
           mobile: trainer.mobile,
           email: trainer.email,
           address: trainer.address,
-          batches: trainer.batches || [],
           createdAt: trainer.created_at,
           updatedAt: trainer.updated_at
         }));
@@ -528,13 +338,14 @@ const Trainers = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, rowsPerPage, searchTerm]);
+  }, [currentPage, rowsPerPage, searchTerm, canView, isSuperAdmin]);
 
   // Load data when dependencies change
   useEffect(() => {
-    loadTrainersFromAPI();
-    loadBatchesFromAPI();
-  }, [loadTrainersFromAPI, loadBatchesFromAPI]);
+    if (permissionsLoaded && (canView || isSuperAdmin)) {
+      loadTrainersFromAPI();
+    }
+  }, [loadTrainersFromAPI, permissionsLoaded, canView, isSuperAdmin]);
 
   // Debounce search
   useEffect(() => {
@@ -578,22 +389,16 @@ const Trainers = () => {
     }
   };
 
-  // Handle assign batch to trainer
-  const handleAssignBatch = (trainerId, assignedBatches) => {
-    loadTrainersFromAPI();
-    loadBatchesFromAPI();
-    showNotification('Batches updated successfully!', 'success');
-  };
-
   // Handle refresh
   const handleRefresh = () => {
     loadTrainersFromAPI();
-    loadBatchesFromAPI();
     showNotification('Data refreshed successfully', 'success');
   };
 
   // Handle select all on current page
   const handleSelectAll = (event) => {
+    if (!canDelete) return;
+    
     if (event.target.checked) {
       setSelected(trainers.map(trainer => trainer.id));
     } else {
@@ -603,6 +408,8 @@ const Trainers = () => {
 
   // Handle single selection
   const handleSelect = (id) => {
+    if (!canDelete) return;
+    
     const selectedIndex = selected.indexOf(id);
     let newSelected = [];
     
@@ -617,7 +424,7 @@ const Trainers = () => {
 
   // Handle bulk delete
   const handleBulkDelete = async () => {
-    if (selected.length === 0) return;
+    if (!canDelete || selected.length === 0) return;
     
     setLoading(true);
     try {
@@ -690,6 +497,16 @@ const Trainers = () => {
     return name.substring(0, 2).toUpperCase();
   };
 
+  // Show loading state while permissions are being fetched
+  if (!permissionsLoaded) {
+    return <LoadingState />;
+  }
+
+  // If user doesn't have view permission, show access denied
+  if (!canView && !isSuperAdmin) {
+    return <AccessDenied />;
+  }
+
   return (
     <Box>
       {/* Page Header */}
@@ -721,7 +538,7 @@ const Trainers = () => {
         border: `1px solid ${COLORS.border}`
       }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="center" justifyContent="space-between">
-          {/* Search */}
+          {/* Search - Available to all users with view permission */}
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
             <TextField
               placeholder="Search by name, contact, or address..."
@@ -759,24 +576,12 @@ const Trainers = () => {
                 }
               }}
             />
-            {searchTerm && (
-              <Chip 
-                label={`Search: ${searchTerm}`}
-                size="small"
-                onDelete={() => {
-                  setSearchInput('');
-                  setSearchTerm('');
-                  setCurrentPage(1);
-                  setPage(0);
-                }}
-                sx={{ height: 28, fontSize: '0.7rem' }}
-              />
-            )}
           </Stack>
 
-          {/* Action Buttons */}
+          {/* Action Buttons - Conditionally rendered based on permissions */}
           <Stack direction="row" spacing={1.5} alignItems="center">
-            {selected.length > 0 && (
+            {/* Bulk Delete Button - Only show if user has delete permission */}
+            {canDelete && selected.length > 0 && (
               <Button
                 variant="outlined"
                 color="error"
@@ -801,6 +606,7 @@ const Trainers = () => {
               </Button>
             )}
             
+            {/* Refresh Button */}
             <Button
               variant="outlined"
               startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
@@ -824,26 +630,29 @@ const Trainers = () => {
               Refresh
             </Button>
 
-            <Button
-              variant="contained"
-              startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
-              onClick={() => setOpenAddModal(true)}
-              disabled={loading}
-              sx={{
-                height: 36,
-                borderRadius: 1.5,
-                bgcolor: COLORS.primary,
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                textTransform: 'none',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  bgcolor: COLORS.primaryDark,
-                }
-              }}
-            >
-              Add Trainer
-            </Button>
+            {/* Add Trainer Button - Only show if user has create permission */}
+            {canCreate && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
+                onClick={() => setOpenAddModal(true)}
+                disabled={loading}
+                sx={{
+                  height: 36,
+                  borderRadius: 1.5,
+                  bgcolor: COLORS.primary,
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                  '&:hover': {
+                    bgcolor: COLORS.primaryDark,
+                  }
+                }}
+              >
+                Add Trainer
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Paper>
@@ -867,25 +676,29 @@ const Trainers = () => {
                   py: 1.5
                 }
               }}>
-                <TableCell padding="checkbox" sx={{ width: 40 }}>
-                  <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < trainers.length}
-                    checked={trainers.length > 0 && selected.length === trainers.length}
-                    onChange={handleSelectAll}
-                    sx={{
-                      color: COLORS.text.light,
-                      '&.Mui-checked': {
+                {/* Checkbox Column - Only show if user has delete permission */}
+                {canDelete && (
+                  <TableCell padding="checkbox" sx={{ width: 40 }}>
+                    <Checkbox
+                      indeterminate={selected.length > 0 && selected.length < trainers.length}
+                      checked={trainers.length > 0 && selected.length === trainers.length}
+                      onChange={handleSelectAll}
+                      disabled={loading || trainers.length === 0}
+                      sx={{
                         color: COLORS.text.light,
-                      },
-                      '&.MuiCheckbox-indeterminate': {
-                        color: COLORS.text.light,
-                      },
-                      '& .MuiSvgIcon-root': {
-                        fontSize: '1.25rem'
-                      }
-                    }}
-                  />
-                </TableCell>
+                        '&.Mui-checked': {
+                          color: COLORS.text.light,
+                        },
+                        '&.MuiCheckbox-indeterminate': {
+                          color: COLORS.text.light,
+                        },
+                        '& .MuiSvgIcon-root': {
+                          fontSize: '1.25rem'
+                        }
+                      }}
+                    />
+                  </TableCell>
+                )}
                 <TableCell sx={{ 
                   fontWeight: 600, 
                   fontSize: '0.7rem',
@@ -893,14 +706,6 @@ const Trainers = () => {
                   color: COLORS.text.light
                 }}>
                   Name
-                </TableCell>
-                <TableCell sx={{ 
-                  fontWeight: 600, 
-                  fontSize: '0.7rem',
-                  letterSpacing: '0.5px',
-                  color: COLORS.text.light
-                }}>
-                  Assigned Batches
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -932,7 +737,7 @@ const Trainers = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={canDelete ? 5 : 4} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
                       Loading trainers...
@@ -941,7 +746,7 @@ const Trainers = () => {
                 </TableRow>
               ) : trainers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={canDelete ? 5 : 4} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <PeopleIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
@@ -957,7 +762,6 @@ const Trainers = () => {
                 trainers.map((trainer) => {
                   const isSelected = selected.includes(trainer.id);
                   const avatarColor = getAvatarColor(trainer.name);
-                  const batchCount = trainer.batches?.length || 0;
 
                   return (
                     <TableRow
@@ -982,21 +786,24 @@ const Trainers = () => {
                         }
                       }}
                     >
-                      <TableCell padding="checkbox" sx={{ width: 40 }}>
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={() => handleSelect(trainer.id)}
-                          sx={{
-                            color: COLORS.accent,
-                            '&.Mui-checked': {
+                      {/* Checkbox Column - Only show if user has delete permission */}
+                      {canDelete && (
+                        <TableCell padding="checkbox" sx={{ width: 40 }}>
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={() => handleSelect(trainer.id)}
+                            sx={{
                               color: COLORS.accent,
-                            },
-                            '& .MuiSvgIcon-root': {
-                              fontSize: '1.25rem'
-                            }
-                          }}
-                        />
-                      </TableCell>
+                              '&.Mui-checked': {
+                                color: COLORS.accent,
+                              },
+                              '& .MuiSvgIcon-root': {
+                                fontSize: '1.25rem'
+                              }
+                            }}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Stack direction="row" spacing={1.5} alignItems="center">
                           <Avatar 
@@ -1023,14 +830,6 @@ const Trainers = () => {
                         </Stack>
                       </TableCell>
                       <TableCell>
-                        <BatchChip batches={trainer.batches} />
-                        {batchCount > 0 && (
-                          <Typography sx={{ fontSize: '0.6rem', color: COLORS.text.tertiary, mt: 0.5 }}>
-                            {trainer.batches.map(b => `Batch #${b.id}`).join(', ')}
-                          </Typography>
-                        )}
-                      </TableCell>
-                      <TableCell>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <PhoneIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
                           <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
@@ -1052,7 +851,9 @@ const Trainers = () => {
                           onView={(t) => { setSelectedTrainer(t); setOpenViewModal(true); }}
                           onEdit={(t) => { setSelectedTrainer(t); setOpenEditModal(true); }}
                           onDelete={(t) => { setSelectedTrainer(t); setOpenDeleteDialog(true); }}
-                          onAssignBatch={(t) => { setSelectedTrainer(t); setOpenAssignBatchDialog(true); }}
+                          canView={canView}
+                          canUpdate={canUpdate}
+                          canDelete={canDelete}
                         />
                       </TableCell>
                     </TableRow>
@@ -1088,24 +889,28 @@ const Trainers = () => {
         />
       </Paper>
 
-      {/* Modal Components */}
-      <AddTrainer 
-        open={openAddModal}
-        onClose={() => setOpenAddModal(false)}
-        onAdd={handleAddTrainer}
-      />
+      {/* Modal Components - Only render if user has appropriate permissions */}
+      {canCreate && (
+        <AddTrainer 
+          open={openAddModal}
+          onClose={() => setOpenAddModal(false)}
+          onAdd={handleAddTrainer}
+        />
+      )}
 
       {selectedTrainer && (
         <>
-          <EditTrainer 
-            open={openEditModal}
-            onClose={() => {
-              setOpenEditModal(false);
-              setSelectedTrainer(null);
-            }}
-            trainer={selectedTrainer}
-            onUpdate={handleEditTrainer}
-          />
+          {canUpdate && (
+            <EditTrainer 
+              open={openEditModal}
+              onClose={() => {
+                setOpenEditModal(false);
+                setSelectedTrainer(null);
+              }}
+              trainer={selectedTrainer}
+              onUpdate={handleEditTrainer}
+            />
+          )}
 
           <ViewTrainer 
             open={openViewModal}
@@ -1120,26 +925,17 @@ const Trainers = () => {
             }}
           />
 
-          <DeleteTrainer 
-            open={openDeleteDialog}
-            onClose={() => {
-              setOpenDeleteDialog(false);
-              setSelectedTrainer(null);
-            }}
-            trainer={selectedTrainer}
-            onDelete={handleDeleteTrainer}
-          />
-
-          <AssignBatchDialog 
-            open={openAssignBatchDialog}
-            onClose={() => {
-              setOpenAssignBatchDialog(false);
-              setSelectedTrainer(null);
-            }}
-            trainer={selectedTrainer}
-            batches={batches}
-            onAssign={handleAssignBatch}
-          />
+          {canDelete && (
+            <DeleteTrainer 
+              open={openDeleteDialog}
+              onClose={() => {
+                setOpenDeleteDialog(false);
+                setSelectedTrainer(null);
+              }}
+              trainer={selectedTrainer}
+              onDelete={handleDeleteTrainer}
+            />
+          )}
         </>
       )}
 

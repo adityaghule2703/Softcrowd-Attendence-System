@@ -27,10 +27,13 @@ import {
   Add as AddIcon,
   Close as CloseIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
-  KeyboardArrowRight as KeyboardArrowRightIcon
+  KeyboardArrowRight as KeyboardArrowRightIcon,
+  Remove as RemoveIcon
 } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
-// Color constants (matching StudentManagement)
+// Color constants
 const COLORS = {
   primary: '#0F172A',
   primaryLight: '#1E293B',
@@ -54,20 +57,32 @@ const COLORS = {
 // All available actions
 const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
-// Only pages from Sidebar
+// Modules that only have VIEW permission
+const VIEW_ONLY_MODULES = ['DASHBOARD', 'REPORTS'];
+
+// Get available actions for a module
+const getAvailableActions = (module) => {
+  if (VIEW_ONLY_MODULES.includes(module)) {
+    return ['VIEW'];
+  }
+  return ALL_ACTIONS;
+};
+
+// All pages with their module keys
 const ALL_PAGES = [
-  { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
-  { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters' },
-  { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
-  { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
-  { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
-  { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
-  { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
-  { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions' },
-  { module: 'USERS', page: 'Users', category: 'Administration' },
-  { module: 'ROLES', page: 'Roles', category: 'Administration' },
-  { module: 'REPORTS', page: 'Reports', category: 'Reports' },
+  { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard', viewOnly: true },
+  { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters', viewOnly: false },
+  { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters', viewOnly: false },
+  { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters', viewOnly: false },
+  { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters', viewOnly: false },
+  { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters', viewOnly: false },
+  { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters', viewOnly: false },
+  { module: 'TRAINERS', page: 'Trainers', category: 'Masters', viewOnly: false },
+  { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions', viewOnly: false },
+  { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration', viewOnly: false },
+  { module: 'USERS', page: 'Users', category: 'Administration', viewOnly: false },
+  { module: 'ROLES', page: 'Roles', category: 'Administration', viewOnly: false },
+  { module: 'REPORTS', page: 'Reports', category: 'Reports', viewOnly: true }
 ];
 
 // Group pages by category
@@ -79,12 +94,67 @@ const groupedPages = ALL_PAGES.reduce((acc, page) => {
   return acc;
 }, {});
 
+// Map module and action to permission ID
+const getPermissionId = (moduleKey, action) => {
+  const mapping = {
+    'DASHBOARD_VIEW': 1,
+    'DEPARTMENT_MANAGEMENT_VIEW': 23,
+    'DEPARTMENT_MANAGEMENT_CREATE': 24,
+    'DEPARTMENT_MANAGEMENT_UPDATE': 25,
+    'DEPARTMENT_MANAGEMENT_DELETE': 26,
+    'DOMAIN_MANAGEMENT_VIEW': 30,
+    'DOMAIN_MANAGEMENT_CREATE': 31,
+    'DOMAIN_MANAGEMENT_UPDATE': 32,
+    'DOMAIN_MANAGEMENT_DELETE': 33,
+    'BATCH_MANAGEMENT_VIEW': 37,
+    'BATCH_MANAGEMENT_CREATE': 38,
+    'BATCH_MANAGEMENT_UPDATE': 39,
+    'BATCH_MANAGEMENT_DELETE': 40,
+    'STUDENT_MANAGEMENT_VIEW': 44,
+    'STUDENT_MANAGEMENT_CREATE': 45,
+    'STUDENT_MANAGEMENT_UPDATE': 46,
+    'STUDENT_MANAGEMENT_DELETE': 47,
+    'TRAINERS_VIEW': 51,
+    'TRAINERS_CREATE': 52,
+    'TRAINERS_UPDATE': 53,
+    'TRAINERS_DELETE': 54,
+    'COLLEGE_MANAGEMENT_VIEW': 57,
+    'COLLEGE_MANAGEMENT_CREATE': 58,
+    'COLLEGE_MANAGEMENT_UPDATE': 59,
+    'COLLEGE_MANAGEMENT_DELETE': 60,
+    'HOLIDAY_MANAGEMENT_VIEW': 64,
+    'HOLIDAY_MANAGEMENT_CREATE': 65,
+    'HOLIDAY_MANAGEMENT_UPDATE': 66,
+    'HOLIDAY_MANAGEMENT_DELETE': 67,
+    'ATTENDANCE_VIEW': 71,
+    'ATTENDANCE_CREATE': 72,
+    'ATTENDANCE_UPDATE': 73,
+    'ATTENDANCE_DELETE': 74,
+    'REPORTS_VIEW': 78,
+    'USER_MANAGEMENT_VIEW': 2,
+    'USER_MANAGEMENT_CREATE': 3,
+    'USER_MANAGEMENT_UPDATE': 4,
+    'USER_MANAGEMENT_DELETE': 5,
+    'USERS_VIEW': 9,
+    'USERS_CREATE': 10,
+    'USERS_UPDATE': 11,
+    'USERS_DELETE': 12,
+    'ROLES_VIEW': 16,
+    'ROLES_CREATE': 17,
+    'ROLES_UPDATE': 18,
+    'ROLES_DELETE': 19,
+  };
+  
+  const key = `${moduleKey}_${action}`;
+  return mapping[key] || null;
+};
+
 const AddRole = ({ open, onClose, onAdd }) => {
   const [formData, setFormData] = useState({
-    RoleName: '',
-    Description: '',
-    IsActive: true,
-    isSuperAdmin: false
+    name: '',
+    description: '',
+    is_active: true,
+    is_super_admin: false
   });
   const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(false);
@@ -96,16 +166,17 @@ const AddRole = ({ open, onClose, onAdd }) => {
     if (open) {
       // Reset form data
       setFormData({
-        RoleName: '',
-        Description: '',
-        IsActive: true,
-        isSuperAdmin: false
+        name: '',
+        description: '',
+        is_active: true,
+        is_super_admin: false
       });
 
-      // Initialize all permissions to false
+      // Initialize all permissions to false (only for available actions)
       const initialPermissions = {};
       ALL_PAGES.forEach(page => {
-        ALL_ACTIONS.forEach(action => {
+        const availableActions = getAvailableActions(page.module);
+        availableActions.forEach(action => {
           const key = `${page.module}_${action}`;
           initialPermissions[key] = false;
         });
@@ -142,7 +213,8 @@ const AddRole = ({ open, onClose, onAdd }) => {
 
   const handleSelectAllForPage = (module, checked) => {
     const newPermissions = { ...permissions };
-    ALL_ACTIONS.forEach(action => {
+    const availableActions = getAvailableActions(module);
+    availableActions.forEach(action => {
       const key = `${module}_${action}`;
       newPermissions[key] = checked;
     });
@@ -151,7 +223,8 @@ const AddRole = ({ open, onClose, onAdd }) => {
 
   const getPageSelectedCount = (module) => {
     let count = 0;
-    ALL_ACTIONS.forEach(action => {
+    const availableActions = getAvailableActions(module);
+    availableActions.forEach(action => {
       const key = `${module}_${action}`;
       if (permissions[key]) count++;
     });
@@ -165,33 +238,34 @@ const AddRole = ({ open, onClose, onAdd }) => {
     }));
   };
 
-  // Transform permissions to the format expected
-  const transformPermissionsToFormat = () => {
-    const permissionsArray = [];
+  // Transform permissions to array of permission IDs
+  const getSelectedPermissionIds = () => {
+    const permissionIds = [];
     
     ALL_PAGES.forEach(page => {
-      ALL_ACTIONS.forEach(action => {
+      const availableActions = getAvailableActions(page.module);
+      availableActions.forEach(action => {
         const key = `${page.module}_${action}`;
         if (permissions[key]) {
-          permissionsArray.push({
-            module: page.module,
-            action: action
-          });
+          const permissionId = getPermissionId(page.module, action);
+          if (permissionId) {
+            permissionIds.push(permissionId);
+          }
         }
       });
     });
     
-    return permissionsArray;
+    return permissionIds;
   };
 
   const handleSubmit = async () => {
     // Validation
-    if (!formData.RoleName.trim()) {
+    if (!formData.name.trim()) {
       setError('Role name is required');
       return;
     }
 
-    if (formData.RoleName.trim().length < 2) {
+    if (formData.name.trim().length < 2) {
       setError('Role name must be at least 2 characters');
       return;
     }
@@ -200,28 +274,35 @@ const AddRole = ({ open, onClose, onAdd }) => {
     setError('');
 
     try {
-      const permissionsArray = transformPermissionsToFormat();
+      const token = localStorage.getItem('token');
+      const permissionIds = getSelectedPermissionIds();
       
-      const newRole = {
-        RoleName: formData.RoleName.trim(),
-        Description: formData.Description.trim(),
-        IsActive: formData.IsActive,
-        isSuperAdmin: formData.isSuperAdmin,
-        permissions: permissionsArray,
-        permissionsCount: permissionsArray.length,
-        CreatedAt: new Date().toISOString(),
-        UpdatedAt: new Date().toISOString()
+      const requestData = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        is_active: formData.is_active,
+        is_super_admin: formData.is_super_admin,
+        permissions: permissionIds
       };
 
-      // Simulate API call with setTimeout
-      setTimeout(() => {
-        onAdd(newRole);
+      const response = await axios.post(`${BASE_URL}/roles`, requestData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.success) {
+        // Call the onAdd callback with the new role data
+        onAdd(response.data.data);
         setLoading(false);
         onClose();
-      }, 500);
+      } else {
+        throw new Error(response.data.message || 'Failed to add role');
+      }
     } catch (err) {
       console.error('Error adding role:', err);
-      setError('Failed to add role. Please try again.');
+      setError(err.response?.data?.message || 'Failed to add role. Please try again.');
       setLoading(false);
     }
   };
@@ -292,8 +373,8 @@ const AddRole = ({ open, onClose, onAdd }) => {
                 </Typography>
                 <TextField
                   fullWidth
-                  name="RoleName"
-                  value={formData.RoleName}
+                  name="name"
+                  value={formData.name}
                   onChange={handleInputChange}
                   disabled={loading}
                   placeholder="e.g., HR Manager, Admin, Employee"
@@ -318,9 +399,9 @@ const AddRole = ({ open, onClose, onAdd }) => {
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={formData.IsActive}
+                        checked={formData.is_active}
                         onChange={handleInputChange}
-                        name="IsActive"
+                        name="is_active"
                         sx={{
                           '& .MuiSwitch-switchBase.Mui-checked': {
                             color: COLORS.accent,
@@ -333,13 +414,13 @@ const AddRole = ({ open, onClose, onAdd }) => {
                     }
                     label={
                       <Chip
-                        label={formData.IsActive ? 'Active' : 'Inactive'}
+                        label={formData.is_active ? 'Active' : 'Inactive'}
                         size="small"
                         sx={{ 
                           fontSize: '0.65rem',
                           height: 22,
-                          bgcolor: formData.IsActive ? '#D1FAE5' : '#FEE2E2',
-                          color: formData.IsActive ? '#10B981' : '#EF4444'
+                          bgcolor: formData.is_active ? '#D1FAE5' : '#FEE2E2',
+                          color: formData.is_active ? '#10B981' : '#EF4444'
                         }}
                       />
                     }
@@ -348,9 +429,9 @@ const AddRole = ({ open, onClose, onAdd }) => {
                   <FormControlLabel
                     control={
                       <Switch
-                        checked={formData.isSuperAdmin}
+                        checked={formData.is_super_admin}
                         onChange={handleInputChange}
-                        name="isSuperAdmin"
+                        name="is_super_admin"
                         sx={{
                           '& .MuiSwitch-switchBase.Mui-checked': {
                             color: COLORS.accent,
@@ -368,8 +449,8 @@ const AddRole = ({ open, onClose, onAdd }) => {
                         sx={{ 
                           fontSize: '0.65rem',
                           height: 22,
-                          bgcolor: formData.isSuperAdmin ? '#D1FAE5' : '#FEE2E2',
-                          color: formData.isSuperAdmin ? '#10B981' : '#EF4444'
+                          bgcolor: formData.is_super_admin ? '#D1FAE5' : '#FEE2E2',
+                          color: formData.is_super_admin ? '#10B981' : '#EF4444'
                         }}
                       />
                     }
@@ -384,8 +465,8 @@ const AddRole = ({ open, onClose, onAdd }) => {
               </Typography>
               <TextField
                 fullWidth
-                name="Description"
-                value={formData.Description}
+                name="description"
+                value={formData.description}
                 onChange={handleInputChange}
                 multiline
                 rows={3}
@@ -476,9 +557,10 @@ const AddRole = ({ open, onClose, onAdd }) => {
                         
                         {/* Pages Rows - Only show if category is expanded */}
                         {expandedCategories[category] && pages.map((page) => {
+                          const availableActions = getAvailableActions(page.module);
                           const selectedCount = getPageSelectedCount(page.module);
-                          const allSelected = selectedCount === ALL_ACTIONS.length;
-                          const someSelected = selectedCount > 0 && selectedCount < ALL_ACTIONS.length;
+                          const allSelected = selectedCount === availableActions.length && availableActions.length > 0;
+                          const someSelected = selectedCount > 0 && selectedCount < availableActions.length;
                           
                           return (
                             <TableRow key={page.module} hover>
@@ -502,26 +584,57 @@ const AddRole = ({ open, onClose, onAdd }) => {
                                     <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
                                       {page.module}
                                     </Typography>
+                                    {page.viewOnly && (
+                                      <Chip 
+                                        label="View Only" 
+                                        size="small" 
+                                        sx={{ 
+                                          fontSize: '0.6rem', 
+                                          height: 18, 
+                                          mt: 0.5,
+                                          bgcolor: '#E0F2FE',
+                                          color: '#00AEED'
+                                        }} 
+                                      />
+                                    )}
                                   </Box>
-                                  <Checkbox
-                                    size="small"
-                                    checked={allSelected}
-                                    indeterminate={someSelected}
-                                    onChange={(e) => handleSelectAllForPage(page.module, e.target.checked)}
-                                    sx={{
-                                      color: COLORS.accent,
-                                      '&.Mui-checked': {
+                                  {!page.viewOnly && availableActions.length > 0 && (
+                                    <Checkbox
+                                      size="small"
+                                      checked={allSelected}
+                                      indeterminate={someSelected}
+                                      onChange={(e) => handleSelectAllForPage(page.module, e.target.checked)}
+                                      sx={{
                                         color: COLORS.accent,
-                                      },
-                                      '&.MuiCheckbox-indeterminate': {
-                                        color: COLORS.accent,
-                                      }
-                                    }}
-                                  />
+                                        '&.Mui-checked': {
+                                          color: COLORS.accent,
+                                        },
+                                        '&.MuiCheckbox-indeterminate': {
+                                          color: COLORS.accent,
+                                        }
+                                      }}
+                                    />
+                                  )}
+                                  {page.viewOnly && (
+                                    <Box sx={{ width: 42 }} />
+                                  )}
                                 </Box>
                               </TableCell>
                               {ALL_ACTIONS.map((action) => {
-                                const isChecked = permissions[`${page.module}_${action}`] || false;
+                                const isActionAvailable = availableActions.includes(action);
+                                const isChecked = isActionAvailable && (permissions[`${page.module}_${action}`] || false);
+                                
+                                if (!isActionAvailable) {
+                                  // Show dash (-) for unavailable actions
+                                  return (
+                                    <TableCell key={action} align="center" sx={{ p: 1 }}>
+                                      <Box sx={{ textAlign: 'center' }}>
+                                        <RemoveIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                                      </Box>
+                                    </TableCell>
+                                  );
+                                }
+                                
                                 return (
                                   <TableCell key={action} align="center" sx={{ p: 1 }}>
                                     <Checkbox
@@ -586,7 +699,7 @@ const AddRole = ({ open, onClose, onAdd }) => {
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={loading || !formData.RoleName.trim()}
+          disabled={loading || !formData.name.trim()}
           startIcon={loading ? <CircularProgress size={16} /> : <AddIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 36,

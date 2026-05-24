@@ -19,7 +19,6 @@ import {
   IconButton
 } from '@mui/material';
 import {
-  Visibility as ViewIcon,
   Close as CloseIcon,
   Edit as EditIcon
 } from '@mui/icons-material';
@@ -48,30 +47,88 @@ const COLORS = {
   }
 };
 
-const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT', 'IMPORT', 'PRINT', 'APPROVE', 'REJECT'];
+// All available actions
+const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
-const ALL_PAGES = [
+// All modules/pages based on the API response structure
+const ALL_MODULES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
-  { module: 'USERS', page: 'Users', category: 'Administration' },
-  { module: 'ROLES', page: 'Roles', category: 'Administration' },
-  // ... add all your pages here (same as AddRole)
+  { module: 'USER_MANAGEMENT', page: 'User Management', category: 'User Management' },
+  { module: 'USERS', page: 'Users', category: 'User Management' },
+  { module: 'ROLES', page: 'Roles', category: 'User Management' },
+  { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
+  { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters' },
+  { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
+  { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
+  { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
+  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
+  { module: 'ATTENDANCE', page: 'Attendance', category: 'Operations' },
+  { module: 'REPORTS', page: 'Reports', category: 'Operations' }
 ];
 
-const groupedPages = ALL_PAGES.reduce((acc, page) => {
-  if (!acc[page.category]) acc[page.category] = [];
-  acc[page.category].push(page);
+// Group pages by category
+const groupedModules = ALL_MODULES.reduce((acc, item) => {
+  if (!acc[item.category]) acc[item.category] = [];
+  acc[item.category].push(item);
   return acc;
 }, {});
 
 const ViewRole = ({ open, onClose, role, onEdit }) => {
-  // Create permission map
-  const permissionMap = {};
-  if (role?.permissions) {
-    role.permissions.forEach(perm => {
-      const key = `${perm.module}_${perm.action}`;
-      permissionMap[key] = true;
-    });
-  }
+  // Comprehensive console logging
+  React.useEffect(() => {
+    if (open && role) {
+      console.log('=== ViewRole Component Debug ===');
+      console.log('Role prop received:', role);
+      console.log('Role ID:', role.id);
+      console.log('Role Name:', role.RoleName);
+      console.log('Role Description:', role.Description);
+      console.log('Role IsActive:', role.IsActive);
+      console.log('Role isSuperAdmin:', role.isSuperAdmin);
+      console.log('Role CreatedAt:', role.CreatedAt);
+      console.log('Role UpdatedAt:', role.UpdatedAt);
+      console.log('Role Permissions:', role.permissions);
+      console.log('================================');
+    }
+  }, [open, role]);
+
+  // Create permission map from the role's permissions
+  const permissionMap = React.useMemo(() => {
+    const map = {};
+    if (role?.permissions && Array.isArray(role.permissions)) {
+      console.log('Building permission map from permissions array:', role.permissions);
+      role.permissions.forEach(perm => {
+        const key = `${perm.module_key}_${perm.action}`;
+        map[key] = true;
+        console.log(`Added permission: ${key}`);
+      });
+    }
+    console.log('Final permission map:', map);
+    return map;
+  }, [role]);
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return 'N/A';
+    }
+  };
+
+  // Get role ID display
+  const getRoleIdDisplay = () => {
+    if (!role?.id) return 'N/A';
+    const idStr = String(role.id);
+    return idStr.length > 6 ? idStr.slice(-6) : idStr;
+  };
 
   return (
     <Dialog 
@@ -108,9 +165,9 @@ const ViewRole = ({ open, onClose, role, onEdit }) => {
           </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-          {role?._id && (
+          {role?.id && (
             <Chip
-              label={`ID: ${role._id.slice(-6)}`}
+              label={`ID: ${getRoleIdDisplay()}`}
               size="small"
               sx={{ 
                 fontSize: '0.65rem',
@@ -163,6 +220,23 @@ const ViewRole = ({ open, onClose, role, onEdit }) => {
                 />
               </Box>
             </Box>
+
+            {/* Super Admin Badge */}
+            {role?.isSuperAdmin && (
+              <Box sx={{ mt: 1.5 }}>
+                <Chip
+                  label="Super Admin"
+                  size="small"
+                  sx={{
+                    bgcolor: '#D1FAE5',
+                    color: '#10B981',
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    height: 24
+                  }}
+                />
+              </Box>
+            )}
             
             <Box sx={{ mt: 2 }}>
               <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
@@ -172,63 +246,147 @@ const ViewRole = ({ open, onClose, role, onEdit }) => {
                 {role?.Description || 'No description provided'}
               </Typography>
             </Box>
+
+            {/* Created and Updated Info */}
+            <Box sx={{ mt: 2, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
+              {role?.CreatedAt && (
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
+                    CREATED DATE
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                    {formatDate(role.CreatedAt)}
+                  </Typography>
+                </Box>
+              )}
+              
+              {role?.UpdatedAt && (
+                <Box>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
+                    LAST UPDATED
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                    {formatDate(role.UpdatedAt)}
+                  </Typography>
+                </Box>
+              )}
+            </Box>
           </Box>
 
-          {/* Permissions */}
+          {/* Permissions Section */}
           <Box>
-            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.secondary, textTransform: 'uppercase', letterSpacing: '0.5px', mb: 2 }}>
-              Module Permissions
-            </Typography>
-            
-            <Box sx={{ overflowX: 'auto' }}>
-              <TableContainer>
-                <Table size="small" sx={{ minWidth: 800 }}>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: COLORS.background.tableHeader }}>
-                      <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: COLORS.text.light, minWidth: 200 }}>
-                        Pages / Modules
-                      </TableCell>
-                      {ALL_ACTIONS.map((action) => (
-                        <TableCell key={action} align="center" sx={{ fontWeight: 600, fontSize: '0.7rem', color: COLORS.text.light, minWidth: 70 }}>
-                          {action}
-                        </TableCell>
-                      ))}
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {Object.entries(groupedPages).map(([category, pages]) => (
-                      <React.Fragment key={category}>
-                        <TableRow sx={{ bgcolor: `${COLORS.primary}10` }}>
-                          <TableCell colSpan={ALL_ACTIONS.length + 1} sx={{ fontWeight: 600, fontSize: '0.7rem', color: COLORS.primary, py: 1 }}>
-                            {category}
-                          </TableCell>
-                        </TableRow>
-                        {pages.map((page) => (
-                          <TableRow key={page.module} hover>
-                            <TableCell sx={{ fontSize: '0.75rem', py: 1.5 }}>
-                              <Box>
-                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 500 }}>{page.page}</Typography>
-                                <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>{page.module}</Typography>
-                              </Box>
-                            </TableCell>
-                            {ALL_ACTIONS.map((action) => (
-                              <TableCell key={action} align="center">
-                                <Checkbox
-                                  checked={!!permissionMap[`${page.module}_${action}`]}
-                                  disabled
-                                  size="small"
-                                  sx={{ color: COLORS.primary, '&.Mui-checked': { color: COLORS.primary } }}
-                                />
-                              </TableCell>
-                            ))}
-                          </TableRow>
-                        ))}
-                      </React.Fragment>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.secondary, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Module Permissions
+              </Typography>
+              <Chip
+                label={`${role?.permissions?.length || 0} permission${role?.permissions?.length !== 1 ? 's' : ''} assigned`}
+                size="small"
+                sx={{
+                  bgcolor: COLORS.background.light,
+                  color: COLORS.primary,
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  height: 24
+                }}
+              />
             </Box>
+            
+            {role?.isSuperAdmin ? (
+              // Special message for Super Admin
+              <Box sx={{ 
+                textAlign: 'center', 
+                py: 4, 
+                bgcolor: COLORS.background.light,
+                borderRadius: 1,
+                border: `1px solid ${COLORS.border}`
+              }}>
+                <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, color: COLORS.primary, mb: 1 }}>
+                  👑 Super Admin Access
+                </Typography>
+                <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
+                  Super Admin has full access to all modules and permissions
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ overflowX: 'auto' }}>
+                  <TableContainer>
+                    <Table size="small" sx={{ minWidth: 800 }}>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: COLORS.background.tableHeader }}>
+                          <TableCell sx={{ fontWeight: 600, fontSize: '0.7rem', color: COLORS.text.light, minWidth: 200 }}>
+                            Pages / Modules
+                          </TableCell>
+                          {ALL_ACTIONS.map((action) => (
+                            <TableCell key={action} align="center" sx={{ fontWeight: 600, fontSize: '0.7rem', color: COLORS.text.light, minWidth: 70 }}>
+                              {action}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {Object.entries(groupedModules).map(([category, modules]) => (
+                          <React.Fragment key={category}>
+                            <TableRow sx={{ bgcolor: `${COLORS.primary}10` }}>
+                              <TableCell colSpan={ALL_ACTIONS.length + 1} sx={{ fontWeight: 600, fontSize: '0.7rem', color: COLORS.primary, py: 1 }}>
+                                {category}
+                              </TableCell>
+                            </TableRow>
+                            {modules.map((module) => (
+                              <TableRow key={module.module} hover>
+                                <TableCell sx={{ fontSize: '0.75rem', py: 1.5 }}>
+                                  <Box>
+                                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 500 }}>{module.page}</Typography>
+                                    <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>{module.module}</Typography>
+                                  </Box>
+                                </TableCell>
+                                {ALL_ACTIONS.map((action) => {
+                                  const hasPermission = permissionMap[`${module.module}_${action}`];
+                                  return (
+                                    <TableCell key={action} align="center">
+                                      <Checkbox
+                                        checked={!!hasPermission}
+                                        disabled
+                                        size="small"
+                                        sx={{ 
+                                          color: COLORS.primary, 
+                                          '&.Mui-checked': { 
+                                            color: COLORS.primary 
+                                          },
+                                          '& .MuiSvgIcon-root': {
+                                            fontSize: '1rem'
+                                          }
+                                        }}
+                                      />
+                                    </TableCell>
+                                  );
+                                })}
+                              </TableRow>
+                            ))}
+                          </React.Fragment>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </TableContainer>
+                </Box>
+
+                {/* No permissions message */}
+                {(!role?.permissions || role.permissions.length === 0) && (
+                  <Box sx={{ 
+                    textAlign: 'center', 
+                    py: 4, 
+                    bgcolor: COLORS.background.light,
+                    borderRadius: 1,
+                    mt: 2
+                  }}>
+                    <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
+                      No permissions assigned to this role
+                    </Typography>
+                  </Box>
+                )}
+              </>
+            )}
           </Box>
         </Stack>
       </DialogContent>
@@ -242,20 +400,10 @@ const ViewRole = ({ open, onClose, role, onEdit }) => {
         justifyContent: 'flex-end',
         gap: 1
       }}>
-        <Button onClick={onClose}>Close</Button>
-        {onEdit && (
-          <Button
-            variant="contained"
-            onClick={onEdit}
-            startIcon={<EditIcon />}
-            sx={{
-              bgcolor: COLORS.primary,
-              '&:hover': { bgcolor: COLORS.primaryDark }
-            }}
-          >
-            Edit Role
-          </Button>
-        )}
+        <Button onClick={onClose}>
+          Close
+        </Button>
+        
       </DialogActions>
     </Dialog>
   );

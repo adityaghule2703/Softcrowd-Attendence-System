@@ -29,8 +29,11 @@ import {
   Edit as EditIcon,
   Close as CloseIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
-  KeyboardArrowRight as KeyboardArrowRightIcon
+  KeyboardArrowRight as KeyboardArrowRightIcon,
+  Remove as RemoveIcon
 } from '@mui/icons-material';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Color constants
 const COLORS = {
@@ -56,21 +59,33 @@ const COLORS = {
 // All available actions
 const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
+// Modules that only have VIEW permission
+const VIEW_ONLY_MODULES = ['DASHBOARD', 'REPORTS'];
+
 // All pages/modules from sidebar
 const ALL_PAGES = [
-  { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
-  { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters' },
-  { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
-  { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
-  { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
-  { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
-  { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
-  { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions' },
-  { module: 'USERS', page: 'Users', category: 'Administration' },
-  { module: 'ROLES', page: 'Roles', category: 'Administration' },
-  { module: 'REPORTS', page: 'Reports', category: 'Reports' },
+  { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard', viewOnly: true },
+  { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters', viewOnly: false },
+  { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters', viewOnly: false },
+  { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters', viewOnly: false },
+  { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters', viewOnly: false },
+  { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters', viewOnly: false },
+  { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters', viewOnly: false },
+  { module: 'TRAINERS', page: 'Trainers', category: 'Masters', viewOnly: false },
+  { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions', viewOnly: false },
+  { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration', viewOnly: false },
+  { module: 'USERS', page: 'Users', category: 'Administration', viewOnly: false },
+  { module: 'ROLES', page: 'Roles', category: 'Administration', viewOnly: false },
+  { module: 'REPORTS', page: 'Reports', category: 'Reports', viewOnly: true }
 ];
+
+// Get available actions for a module
+const getAvailableActions = (module) => {
+  if (VIEW_ONLY_MODULES.includes(module)) {
+    return ['VIEW'];
+  }
+  return ALL_ACTIONS;
+};
 
 // Group pages by category
 const groupedPages = ALL_PAGES.reduce((acc, page) => {
@@ -81,154 +96,331 @@ const groupedPages = ALL_PAGES.reduce((acc, page) => {
   return acc;
 }, {});
 
-const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
+// Map module and action to permission ID
+const getPermissionId = (moduleKey, action) => {
+  const mapping = {
+    'DASHBOARD_VIEW': 1,
+    'DEPARTMENT_MANAGEMENT_VIEW': 23,
+    'DEPARTMENT_MANAGEMENT_CREATE': 24,
+    'DEPARTMENT_MANAGEMENT_UPDATE': 25,
+    'DEPARTMENT_MANAGEMENT_DELETE': 26,
+    'DOMAIN_MANAGEMENT_VIEW': 30,
+    'DOMAIN_MANAGEMENT_CREATE': 31,
+    'DOMAIN_MANAGEMENT_UPDATE': 32,
+    'DOMAIN_MANAGEMENT_DELETE': 33,
+    'HOLIDAY_MANAGEMENT_VIEW': 64,
+    'HOLIDAY_MANAGEMENT_CREATE': 65,
+    'HOLIDAY_MANAGEMENT_UPDATE': 66,
+    'HOLIDAY_MANAGEMENT_DELETE': 67,
+    'COLLEGE_MANAGEMENT_VIEW': 57,
+    'COLLEGE_MANAGEMENT_CREATE': 58,
+    'COLLEGE_MANAGEMENT_UPDATE': 59,
+    'COLLEGE_MANAGEMENT_DELETE': 60,
+    'BATCH_MANAGEMENT_VIEW': 37,
+    'BATCH_MANAGEMENT_CREATE': 38,
+    'BATCH_MANAGEMENT_UPDATE': 39,
+    'BATCH_MANAGEMENT_DELETE': 40,
+    'STUDENT_MANAGEMENT_VIEW': 44,
+    'STUDENT_MANAGEMENT_CREATE': 45,
+    'STUDENT_MANAGEMENT_UPDATE': 46,
+    'STUDENT_MANAGEMENT_DELETE': 47,
+    'TRAINERS_VIEW': 51,
+    'TRAINERS_CREATE': 52,
+    'TRAINERS_UPDATE': 53,
+    'TRAINERS_DELETE': 54,
+    'ATTENDANCE_VIEW': 71,
+    'ATTENDANCE_CREATE': 72,
+    'ATTENDANCE_UPDATE': 73,
+    'ATTENDANCE_DELETE': 74,
+    'USER_MANAGEMENT_VIEW': 2,
+    'USER_MANAGEMENT_CREATE': 3,
+    'USER_MANAGEMENT_UPDATE': 4,
+    'USER_MANAGEMENT_DELETE': 5,
+    'USERS_VIEW': 9,
+    'USERS_CREATE': 10,
+    'USERS_UPDATE': 11,
+    'USERS_DELETE': 12,
+    'ROLES_VIEW': 16,
+    'ROLES_CREATE': 17,
+    'ROLES_UPDATE': 18,
+    'ROLES_DELETE': 19,
+    'REPORTS_VIEW': 78
+  };
+  
+  const key = `${moduleKey}_${action}`;
+  return mapping[key] || null;
+};
+
+const EditUser = ({ open, onClose, user, onUpdate }) => {
   const [loading, setLoading] = useState(false);
+  const [loadingUserData, setLoadingUserData] = useState(false);
   const [error, setError] = useState('');
   
   // Form data
   const [formData, setFormData] = useState({
-    Username: '',
-    Email: '',
-    Password: '',
-    ConfirmPassword: '',
-    RoleId: '',
-    IsActive: true
+    name: '',
+    mobile: '',
+    email: '',
+    password: '',
+    password_confirmation: '',
+    role_id: '',
+    is_active: true,
+    college_id: '' // Add college_id field
   });
   
+  // User permissions data
+  const [userPermissionsData, setUserPermissionsData] = useState([]);
+  
   // Roles data
-  const [availableRoles, setAvailableRoles] = useState(roles);
+  const [roles, setRoles] = useState([]);
   const [loadingRoles, setLoadingRoles] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
+  const [rolePermissions, setRolePermissions] = useState({});
+  
+  // Colleges data
+  const [colleges, setColleges] = useState([]);
+  const [loadingColleges, setLoadingColleges] = useState(false);
+  const [selectedCollege, setSelectedCollege] = useState(null);
   
   // Permissions state
   const [permissions, setPermissions] = useState({});
   const [expandedCategories, setExpandedCategories] = useState({});
 
-  // Load roles if not provided
-  useEffect(() => {
-    if (open) {
-      if (roles.length === 0) {
-        loadRolesFromStorage();
-      } else {
-        setAvailableRoles(roles);
-      }
-    }
-  }, [open, roles]);
-
-  // Initialize form with user data
-  useEffect(() => {
-    if (user && open) {
-      setFormData({
-        Username: user.Username || '',
-        Email: user.Email || '',
-        Password: '',
-        ConfirmPassword: '',
-        RoleId: user.RoleId || '',
-        IsActive: user.IsActive !== undefined ? user.IsActive : true
-      });
-      
-      const role = availableRoles.find(r => r.id === user.RoleId || r.RoleName === user.RoleName);
-      setSelectedRole(role || null);
-      
-      // Initialize permissions from user
-      if (user.permissions && user.permissions.length > 0) {
-        const initialPermissions = {};
-        ALL_PAGES.forEach(page => {
-          ALL_ACTIONS.forEach(action => {
-            const key = `${page.module}_${action}`;
-            initialPermissions[key] = false;
-          });
-        });
-        
-        user.permissions.forEach(perm => {
-          const key = `${perm.module}_${perm.action}`;
-          initialPermissions[key] = true;
-        });
-        
-        setPermissions(initialPermissions);
-      } else if (role && role.permissions) {
-        const initialPermissions = {};
-        ALL_PAGES.forEach(page => {
-          ALL_ACTIONS.forEach(action => {
-            const key = `${page.module}_${action}`;
-            initialPermissions[key] = false;
-          });
-        });
-        
-        role.permissions.forEach(perm => {
-          const key = `${perm.module}_${perm.action}`;
-          initialPermissions[key] = true;
-        });
-        
-        setPermissions(initialPermissions);
-      }
-      
-      // Expand all categories
-      const expanded = {};
-      Object.keys(groupedPages).forEach(category => {
-        expanded[category] = true;
-      });
-      setExpandedCategories(expanded);
-    }
-  }, [user, open, availableRoles]);
-
-  const loadRolesFromStorage = () => {
+  // Fetch roles from API
+  const fetchRoles = async () => {
     setLoadingRoles(true);
     try {
-      const storedRoles = localStorage.getItem('roles');
-      if (storedRoles) {
-        const parsedRoles = JSON.parse(storedRoles);
-        setAvailableRoles(parsedRoles);
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/roles`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data && response.data.success) {
+        const rolesList = response.data.data.map(role => ({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          is_super_admin: role.is_super_admin,
+          permissions: role.permissions || []
+        }));
+        setRoles(rolesList);
       }
     } catch (error) {
-      console.error('Error loading roles:', error);
+      console.error('Error fetching roles:', error);
     } finally {
       setLoadingRoles(false);
     }
   };
 
-  const initializePermissionsFromRole = (role) => {
-    const initialPermissions = {};
-    ALL_PAGES.forEach(page => {
-      ALL_ACTIONS.forEach(action => {
-        const key = `${page.module}_${action}`;
-        initialPermissions[key] = false;
+  // Fetch colleges from API
+  const fetchColleges = async () => {
+    setLoadingColleges(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/colleges`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-    });
 
-    if (role && role.permissions && role.permissions.length > 0) {
-      role.permissions.forEach(perm => {
-        const key = `${perm.module}_${perm.action}`;
-        initialPermissions[key] = true;
-      });
+      if (response.data && response.data.data) {
+        const collegesList = response.data.data.map(college => ({
+          id: college.id,
+          name: college.name,
+          address: college.address,
+          city: college.city,
+          state: college.state,
+          pincode: college.pincode,
+          contact_number: college.contact_number,
+          email: college.email
+        }));
+        setColleges(collegesList);
+      } else {
+        setColleges([]);
+      }
+    } catch (error) {
+      console.error('Error fetching colleges:', error);
+      setError('Failed to load colleges');
+    } finally {
+      setLoadingColleges(false);
     }
-
-    setPermissions(initialPermissions);
   };
+
+  // Fetch single user details by ID
+  const fetchUserDetails = async (userId) => {
+    setLoadingUserData(true);
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/users/${userId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data && response.data.success) {
+        const userData = response.data.data;
+        
+        // Set form data
+        setFormData({
+          name: userData.name || '',
+          mobile: userData.mobile || '',
+          email: userData.email || '',
+          password: '',
+          password_confirmation: '',
+          role_id: userData.role?.id || '',
+          is_active: userData.is_active !== undefined ? userData.is_active : true,
+          college_id: userData.college_id || '' // Set college_id from user data
+        });
+        
+        // Store user permissions from API response
+        setUserPermissionsData(userData.user_permissions || []);
+        
+        // Find selected role
+        const role = roles.find(r => r.id === (userData.role?.id));
+        setSelectedRole(role || null);
+        
+        // Initialize permissions - all false by default
+        const initialPermissions = {};
+        ALL_PAGES.forEach(page => {
+          const availableActions = getAvailableActions(page.module);
+          availableActions.forEach(action => {
+            const key = `${page.module}_${action}`;
+            initialPermissions[key] = false;
+          });
+        });
+        
+        // ONLY set permissions from user_permissions, NOT from role_permissions
+        if (userData.user_permissions && userData.user_permissions.length > 0) {
+          userData.user_permissions.forEach(perm => {
+            if (perm.module_key && perm.action) {
+              const availableActions = getAvailableActions(perm.module_key);
+              if (availableActions.includes(perm.action)) {
+                const key = `${perm.module_key}_${perm.action}`;
+                initialPermissions[key] = true;
+              }
+            }
+          });
+        }
+        
+        // Store role permissions for reference only
+        const rolePermMap = {};
+        if (role && role.permissions) {
+          role.permissions.forEach(perm => {
+            if (perm.module_key && perm.action) {
+              const availableActions = getAvailableActions(perm.module_key);
+              if (availableActions.includes(perm.action)) {
+                const key = `${perm.module_key}_${perm.action}`;
+                rolePermMap[key] = true;
+              }
+            }
+          });
+        }
+        
+        setPermissions(initialPermissions);
+        setRolePermissions(rolePermMap);
+        
+        // Set selected college if role is college and college_id exists
+       if (role && role.name.toLowerCase() === 'college' && userData.college) {
+  // Find college by name instead of ID
+  const college = colleges.find(c => c.name === userData.college);
+  setSelectedCollege(college || null);
+}
+        
+        // Expand all categories by default
+        const expanded = {};
+        Object.keys(groupedPages).forEach(category => {
+          expanded[category] = true;
+        });
+        setExpandedCategories(expanded);
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+      setError('Failed to load user details');
+    } finally {
+      setLoadingUserData(false);
+    }
+  };
+
+  // Initialize when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchRoles();
+      fetchColleges(); // Fetch colleges when dialog opens
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && user && user.id && roles.length > 0) {
+      fetchUserDetails(user.id);
+    }
+  }, [open, user, roles, colleges]);
 
   const handleRoleChange = (event, newValue) => {
     setSelectedRole(newValue);
     if (newValue) {
       setFormData(prev => ({
         ...prev,
-        RoleId: newValue.id
+        role_id: newValue.id,
+        // Reset college_id if role is not college
+        college_id: newValue.name.toLowerCase() === 'college' ? prev.college_id : ''
       }));
-      initializePermissionsFromRole(newValue);
+      
+      // Reset selected college if role is not college
+      if (newValue.name.toLowerCase() !== 'college') {
+        setSelectedCollege(null);
+      }
+      
+      // Reset permissions - all false when role changes
+      const initialPermissions = {};
+      const rolePermMap = {};
+      
+      ALL_PAGES.forEach(page => {
+        const availableActions = getAvailableActions(page.module);
+        availableActions.forEach(action => {
+          const key = `${page.module}_${action}`;
+          initialPermissions[key] = false;
+        });
+      });
+      
+      // Store role permissions for reference
+      if (newValue.permissions) {
+        newValue.permissions.forEach(perm => {
+          if (perm.module_key && perm.action) {
+            const availableActions = getAvailableActions(perm.module_key);
+            if (availableActions.includes(perm.action)) {
+              const key = `${perm.module_key}_${perm.action}`;
+              rolePermMap[key] = true;
+            }
+          }
+        });
+      }
+      
+      setPermissions(initialPermissions);
+      setRolePermissions(rolePermMap);
     } else {
       setFormData(prev => ({
         ...prev,
-        RoleId: ''
+        role_id: '',
+        college_id: ''
       }));
+      setSelectedCollege(null);
+      // Reset permissions
       const emptyPermissions = {};
       ALL_PAGES.forEach(page => {
-        ALL_ACTIONS.forEach(action => {
+        const availableActions = getAvailableActions(page.module);
+        availableActions.forEach(action => {
           const key = `${page.module}_${action}`;
           emptyPermissions[key] = false;
         });
       });
       setPermissions(emptyPermissions);
+      setRolePermissions({});
     }
   };
+
+const handleCollegeChange = (event, newValue) => {
+  setSelectedCollege(newValue);
+  setFormData(prev => ({
+    ...prev,
+    college: newValue ? newValue.name : '' // Send college NAME instead of ID
+  }));
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -242,7 +434,7 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
     const { checked } = e.target;
     setFormData(prev => ({
       ...prev,
-      IsActive: checked
+      is_active: checked
     }));
   };
 
@@ -256,7 +448,8 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
 
   const handleSelectAllForPage = (module, checked) => {
     const newPermissions = { ...permissions };
-    ALL_ACTIONS.forEach(action => {
+    const availableActions = getAvailableActions(module);
+    availableActions.forEach(action => {
       const key = `${module}_${action}`;
       newPermissions[key] = checked;
     });
@@ -265,7 +458,8 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
 
   const getPageSelectedCount = (module) => {
     let count = 0;
-    ALL_ACTIONS.forEach(action => {
+    const availableActions = getAvailableActions(module);
+    availableActions.forEach(action => {
       const key = `${module}_${action}`;
       if (permissions[key]) count++;
     });
@@ -279,57 +473,81 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
     }));
   };
 
-  const transformPermissionsToFormat = () => {
-    const permissionsArray = [];
+  // Check if a permission is available from the role (for display purposes only)
+  const isPermissionFromRole = (module, action) => {
+    const key = `${module}_${action}`;
+    return rolePermissions[key] === true;
+  };
+
+  // Transform permissions to array of permission IDs
+  const getSelectedPermissionIds = () => {
+    const permissionIds = [];
     
     ALL_PAGES.forEach(page => {
-      ALL_ACTIONS.forEach(action => {
+      const availableActions = getAvailableActions(page.module);
+      availableActions.forEach(action => {
         const key = `${page.module}_${action}`;
         if (permissions[key]) {
-          permissionsArray.push({
-            module: page.module,
-            action: action
-          });
+          const permissionId = getPermissionId(page.module, action);
+          if (permissionId) {
+            permissionIds.push(permissionId);
+          }
         }
       });
     });
     
-    return permissionsArray;
+    return permissionIds;
   };
 
   const validateForm = () => {
-    if (!formData.Username.trim()) {
-      setError('Username is required');
+    if (!formData.name.trim()) {
+      setError('Name is required');
       return false;
     }
 
-    if (formData.Username.length < 3) {
-      setError('Username must be at least 3 characters');
+    if (formData.name.length < 2) {
+      setError('Name must be at least 2 characters');
       return false;
     }
 
-    if (!formData.Email.trim()) {
+    if (!formData.mobile.trim()) {
+      setError('Mobile number is required');
+      return false;
+    }
+
+    if (!/^[0-9]{10}$/.test(formData.mobile)) {
+      setError('Please enter a valid 10-digit mobile number');
+      return false;
+    }
+
+    if (!formData.email.trim()) {
       setError('Email is required');
       return false;
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.Email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       setError('Please enter a valid email address');
       return false;
     }
 
-    if (formData.Password && formData.Password.length < 6) {
+    if (formData.password && formData.password.length < 6) {
       setError('Password must be at least 6 characters');
       return false;
     }
 
-    if (formData.Password !== formData.ConfirmPassword) {
+    if (formData.password !== formData.password_confirmation) {
       setError('Passwords do not match');
       return false;
     }
 
-    if (!formData.RoleId) {
+    if (!formData.role_id) {
       setError('Please select a role');
+      return false;
+    }
+
+    // Validate college selection if role is college
+    if (selectedRole && selectedRole.name.toLowerCase() === 'college' && !formData.college_id) {
+      setError('Please select a college');
       return false;
     }
 
@@ -345,27 +563,46 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
     setError('');
 
     try {
-      const permissionsArray = transformPermissionsToFormat();
+      const token = localStorage.getItem('token');
+      const permissionIds = getSelectedPermissionIds();
       
-      const updatedUser = {
-        ...user,
-        Username: formData.Username.trim(),
-        Email: formData.Email.trim(),
-        RoleName: selectedRole?.RoleName || '',
-        RoleId: formData.RoleId,
-        IsActive: formData.IsActive,
-        isSuperAdmin: selectedRole?.RoleName === 'Super Admin',
-        permissions: permissionsArray,
-        permissionsCount: permissionsArray.length,
-        UpdatedAt: new Date().toISOString()
+      const requestData = {
+        name: formData.name.trim(),
+        mobile: formData.mobile.trim(),
+        email: formData.email.trim(),
+        role_id: formData.role_id,
+        is_active: formData.is_active,
+        permissions: permissionIds
       };
 
-      onUpdate(updatedUser);
-      onClose();
+      // Only include password if it's provided (not empty)
+      if (formData.password) {
+        requestData.password = formData.password;
+        requestData.password_confirmation = formData.password_confirmation;
+      }
+
+      // Add college_id to request if role is college
+     if (selectedRole && selectedRole.name.toLowerCase() === 'college') {
+  requestData.college = formData.college; // This will be the college name like "KTHM"
+}
+
+      const response = await axios.put(`${BASE_URL}/users/${user.id}`, requestData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data && response.data.success) {
+        onUpdate(response.data.data);
+        setLoading(false);
+        onClose();
+      } else {
+        throw new Error(response.data.message || 'Failed to update user');
+      }
     } catch (err) {
       console.error('Error updating user:', err);
-      setError('Failed to update user. Please try again.');
-    } finally {
+      setError(err.response?.data?.message || 'Failed to update user. Please try again.');
       setLoading(false);
     }
   };
@@ -374,6 +611,23 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
     setError('');
     onClose();
   };
+
+  // Check if selected role is "college"
+  const isCollegeRole = selectedRole && selectedRole.name.toLowerCase() === 'college';
+
+  // Show loading while fetching user data
+  if (loadingUserData) {
+    return (
+      <Dialog open={open} onClose={handleClose} maxWidth="lg" fullWidth>
+        <DialogContent sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
+          <CircularProgress size={40} sx={{ color: COLORS.accent }} />
+          <Typography sx={{ ml: 2, fontSize: '0.875rem', color: COLORS.text.secondary }}>
+            Loading user details...
+          </Typography>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog
@@ -412,7 +666,7 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           {user?.id && (
             <Chip
-              label={`ID: ${user.id.slice(-6)}`}
+              label={`ID: ${user.id}`}
               size="small"
               sx={{ 
                 fontSize: '0.65rem',
@@ -450,15 +704,39 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2 }}>
               <Box>
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
-                  USERNAME <span style={{ color: '#EF4444' }}>*</span>
+                  FULL NAME <span style={{ color: '#EF4444' }}>*</span>
                 </Typography>
                 <TextField
                   fullWidth
-                  name="Username"
-                  value={formData.Username}
+                  name="name"
+                  value={formData.name}
                   onChange={handleInputChange}
                   disabled={loading}
-                  placeholder="john_doe"
+                  placeholder="John Doe"
+                  size="small"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: 1.5,
+                      bgcolor: COLORS.background.light,
+                      fontSize: '0.75rem',
+                      '&:hover fieldset': { borderColor: COLORS.accent },
+                      '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
+                    }
+                  }}
+                />
+              </Box>
+              
+              <Box>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
+                  MOBILE NUMBER <span style={{ color: '#EF4444' }}>*</span>
+                </Typography>
+                <TextField
+                  fullWidth
+                  name="mobile"
+                  value={formData.mobile}
+                  onChange={handleInputChange}
+                  disabled={loading}
+                  placeholder="9876543210"
                   size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
@@ -471,19 +749,21 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                   }}
                 />
                 <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary, mt: 0.5 }}>
-                  Minimum 3 characters
+                  10-digit mobile number
                 </Typography>
               </Box>
-              
+            </Box>
+
+            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
               <Box>
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
                   EMAIL <span style={{ color: '#EF4444' }}>*</span>
                 </Typography>
                 <TextField
                   fullWidth
-                  name="Email"
+                  name="email"
                   type="email"
-                  value={formData.Email}
+                  value={formData.email}
                   onChange={handleInputChange}
                   disabled={loading}
                   placeholder="john@example.com"
@@ -499,6 +779,42 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                   }}
                 />
               </Box>
+              
+              <Box>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
+                  STATUS
+                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, height: 40 }}>
+                  <FormControlLabel
+                    control={
+                      <Switch
+                        checked={formData.is_active}
+                        onChange={handleStatusChange}
+                        sx={{
+                          '& .MuiSwitch-switchBase.Mui-checked': {
+                            color: COLORS.accent,
+                          },
+                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
+                            backgroundColor: COLORS.accent,
+                          },
+                        }}
+                      />
+                    }
+                    label={
+                      <Chip
+                        label={formData.is_active ? 'Active' : 'Inactive'}
+                        size="small"
+                        sx={{ 
+                          fontSize: '0.65rem',
+                          height: 22,
+                          bgcolor: formData.is_active ? '#D1FAE5' : '#FEE2E2',
+                          color: formData.is_active ? '#10B981' : '#EF4444'
+                        }}
+                      />
+                    }
+                  />
+                </Box>
+              </Box>
             </Box>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
@@ -508,9 +824,9 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                 </Typography>
                 <TextField
                   fullWidth
-                  name="Password"
+                  name="password"
                   type="password"
-                  value={formData.Password}
+                  value={formData.password}
                   onChange={handleInputChange}
                   disabled={loading}
                   placeholder="Leave blank to keep current"
@@ -536,9 +852,9 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                 </Typography>
                 <TextField
                   fullWidth
-                  name="ConfirmPassword"
+                  name="password_confirmation"
                   type="password"
-                  value={formData.ConfirmPassword}
+                  value={formData.password_confirmation}
                   onChange={handleInputChange}
                   disabled={loading}
                   placeholder="Confirm new password"
@@ -556,24 +872,70 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
               </Box>
             </Box>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, mt: 2 }}>
-              <Box>
+            <Box sx={{ mt: 2 }}>
+              <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
+                ROLE <span style={{ color: '#EF4444' }}>*</span>
+              </Typography>
+              <Autocomplete
+                options={roles}
+                loading={loadingRoles}
+                value={selectedRole}
+                onChange={handleRoleChange}
+                getOptionLabel={(option) => option.name || ''}
+                isOptionEqualToValue={(option, value) => option.id === value.id}
+                disabled={loading}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    size="small"
+                    placeholder="Select a role"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: 1.5,
+                        bgcolor: COLORS.background.light,
+                        fontSize: '0.75rem',
+                        '&:hover fieldset': { borderColor: COLORS.accent },
+                        '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
+                      }
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props}>
+                    <Box>
+                      <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
+                        {option.name}
+                      </Typography>
+                      {option.description && (
+                        <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
+                          {option.description}
+                        </Typography>
+                      )}
+                    </Box>
+                  </li>
+                )}
+              />
+            </Box>
+
+            {/* College Dropdown - Only show when role is college */}
+            {isCollegeRole && (
+              <Box sx={{ mt: 2 }}>
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
-                  ROLE <span style={{ color: '#EF4444' }}>*</span>
+                  COLLEGE <span style={{ color: '#EF4444' }}>*</span>
                 </Typography>
                 <Autocomplete
-                  options={availableRoles}
-                  loading={loadingRoles}
-                  value={selectedRole}
-                  onChange={handleRoleChange}
-                  getOptionLabel={(option) => option.RoleName || ''}
+                  options={colleges}
+                  loading={loadingColleges}
+                  value={selectedCollege}
+                  onChange={handleCollegeChange}
+                  getOptionLabel={(option) => option.name || ''}
                   isOptionEqualToValue={(option, value) => option.id === value.id}
                   disabled={loading}
                   renderInput={(params) => (
                     <TextField
                       {...params}
                       size="small"
-                      placeholder="Select a role"
+                      placeholder="Select a college"
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           borderRadius: 1.5,
@@ -589,11 +951,11 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                     <li {...props}>
                       <Box>
                         <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
-                          {option.RoleName}
+                          {option.name}
                         </Typography>
-                        {option.Description && (
+                        {option.city && option.state && (
                           <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                            {option.Description}
+                            {option.city}, {option.state}
                           </Typography>
                         )}
                       </Box>
@@ -601,43 +963,7 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                   )}
                 />
               </Box>
-              
-              <Box>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, mb: 0.5 }}>
-                  STATUS
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, height: 40 }}>
-                  <FormControlLabel
-                    control={
-                      <Switch
-                        checked={formData.IsActive}
-                        onChange={handleStatusChange}
-                        sx={{
-                          '& .MuiSwitch-switchBase.Mui-checked': {
-                            color: COLORS.accent,
-                          },
-                          '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': {
-                            backgroundColor: COLORS.accent,
-                          },
-                        }}
-                      />
-                    }
-                    label={
-                      <Chip
-                        label={formData.IsActive ? 'Active' : 'Inactive'}
-                        size="small"
-                        sx={{ 
-                          fontSize: '0.65rem',
-                          height: 22,
-                          bgcolor: formData.IsActive ? '#D1FAE5' : '#FEE2E2',
-                          color: formData.IsActive ? '#10B981' : '#EF4444'
-                        }}
-                      />
-                    }
-                  />
-                </Box>
-              </Box>
-            </Box>
+            )}
           </Box>
 
           {/* Permissions Section - Only show if a role is selected */}
@@ -706,9 +1032,10 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                           </TableRow>
                           
                           {expandedCategories[category] && pages.map((page) => {
+                            const availableActions = getAvailableActions(page.module);
                             const selectedCount = getPageSelectedCount(page.module);
-                            const allSelected = selectedCount === ALL_ACTIONS.length;
-                            const someSelected = selectedCount > 0 && selectedCount < ALL_ACTIONS.length;
+                            const allSelected = selectedCount === availableActions.length && availableActions.length > 0;
+                            const someSelected = selectedCount > 0 && selectedCount < availableActions.length;
                             
                             return (
                               <TableRow key={page.module} hover>
@@ -721,42 +1048,80 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
                                       <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
                                         {page.module}
                                       </Typography>
+                                      {page.viewOnly && (
+                                        <Chip 
+                                          label="View Only" 
+                                          size="small" 
+                                          sx={{ 
+                                            fontSize: '0.6rem', 
+                                            height: 18, 
+                                            mt: 0.5,
+                                            bgcolor: '#E0F2FE',
+                                            color: '#00AEED'
+                                          }} 
+                                        />
+                                      )}
                                     </Box>
-                                    <Checkbox
-                                      size="small"
-                                      checked={allSelected}
-                                      indeterminate={someSelected}
-                                      onChange={(e) => handleSelectAllForPage(page.module, e.target.checked)}
-                                      sx={{
-                                        color: COLORS.accent,
-                                        '&.Mui-checked': {
-                                          color: COLORS.accent,
-                                        },
-                                        '&.MuiCheckbox-indeterminate': {
-                                          color: COLORS.accent,
-                                        }
-                                      }}
-                                    />
-                                  </Box>
-                                </TableCell>
-                                {ALL_ACTIONS.map((action) => {
-                                  const isChecked = permissions[`${page.module}_${action}`] || false;
-                                  return (
-                                    <TableCell key={action} align="center" sx={{ p: 1 }}>
+                                    {!page.viewOnly && availableActions.length > 0 && (
                                       <Checkbox
-                                        checked={isChecked}
-                                        onChange={(e) => handlePermissionChange(page.module, action, e.target.checked)}
                                         size="small"
+                                        checked={allSelected}
+                                        indeterminate={someSelected}
+                                        onChange={(e) => handleSelectAllForPage(page.module, e.target.checked)}
                                         sx={{
                                           color: COLORS.accent,
                                           '&.Mui-checked': {
                                             color: COLORS.accent,
                                           },
-                                          '& .MuiSvgIcon-root': {
-                                            fontSize: '1rem'
+                                          '&.MuiCheckbox-indeterminate': {
+                                            color: COLORS.accent,
                                           }
                                         }}
                                       />
+                                    )}
+                                    {page.viewOnly && (
+                                      <Box sx={{ width: 42 }} />
+                                    )}
+                                  </Box>
+                                </TableCell>
+                                {ALL_ACTIONS.map((action) => {
+                                  const isActionAvailable = availableActions.includes(action);
+                                  const isChecked = isActionAvailable && (permissions[`${page.module}_${action}`] || false);
+                                  const isAvailableFromRole = isActionAvailable && isPermissionFromRole(page.module, action);
+                                  
+                                  if (!isActionAvailable) {
+                                    return (
+                                      <TableCell key={action} align="center" sx={{ p: 1 }}>
+                                        <Box sx={{ textAlign: 'center' }}>
+                                          <RemoveIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                                        </Box>
+                                      </TableCell>
+                                    );
+                                  }
+                                  
+                                  return (
+                                    <TableCell key={action} align="center" sx={{ p: 1 }}>
+                                      <Box sx={{ textAlign: 'center' }}>
+                                        <Checkbox
+                                          checked={isChecked}
+                                          onChange={(e) => handlePermissionChange(page.module, action, e.target.checked)}
+                                          size="small"
+                                          sx={{
+                                            color: COLORS.accent,
+                                            '&.Mui-checked': {
+                                              color: COLORS.accent,
+                                            },
+                                            '& .MuiSvgIcon-root': {
+                                              fontSize: '1rem'
+                                            }
+                                          }}
+                                        />
+                                        {isAvailableFromRole && (
+                                          <Typography sx={{ fontSize: '0.6rem', color: COLORS.text.tertiary, mt: 0.5 }}>
+                                            Available in Role
+                                          </Typography>
+                                        )}
+                                      </Box>
                                     </TableCell>
                                   );
                                 })}
@@ -806,7 +1171,7 @@ const EditUser = ({ open, onClose, user, onUpdate, roles = [] }) => {
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={loading || !formData.RoleId || !formData.Username.trim() || !formData.Email.trim()}
+          disabled={loading || !formData.role_id || !formData.name.trim() || !formData.mobile.trim() || !formData.email.trim() || (isCollegeRole && !formData.college_id)}
           startIcon={loading ? <CircularProgress size={16} /> : <EditIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 36,

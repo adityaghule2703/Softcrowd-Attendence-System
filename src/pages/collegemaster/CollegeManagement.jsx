@@ -42,6 +42,7 @@ import {
 } from '@mui/icons-material';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
+import { ACTIONS, hasPermission, MODULES, PAGES } from '../../utils/modulePermissions';
 
 // Import modal components
 import AddCollege from './AddCollege';
@@ -70,8 +71,28 @@ const COLORS = {
   border: '#E2E8F0'
 };
 
-// Action Menu Component
-const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
+// Loading state component
+const LoadingState = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+    <CircularProgress size={40} sx={{ color: COLORS.primary }} />
+  </Box>
+);
+
+// Access Denied component
+const AccessDenied = () => (
+  <Box sx={{ p: 4, textAlign: 'center' }}>
+    <BusinessIcon sx={{ fontSize: 64, color: COLORS.text.tertiary, mb: 2 }} />
+    <Typography variant="h6" sx={{ color: COLORS.text.primary, mb: 1, fontWeight: 600 }}>
+      Access Denied
+    </Typography>
+    <Typography variant="body2" sx={{ color: COLORS.text.secondary }}>
+      You don't have permission to view this page. Please contact your administrator.
+    </Typography>
+  </Box>
+);
+
+// Action Menu Component with permission checks
+const ActionMenu = ({ college, onView, onEdit, onDelete, canView, canUpdate, canDelete: canDeletePermission }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -82,6 +103,13 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
   const handleClose = () => {
     setAnchorEl(null);
   };
+
+  // Check if there's ANY action available (including VIEW)
+  const hasAnyAction = canView || canUpdate || canDeletePermission;
+
+  if (!hasAnyAction) {
+    return null;
+  }
 
   return (
     <>
@@ -114,58 +142,70 @@ const ActionMenu = ({ college, onView, onEdit, onDelete }) => {
           }
         }}
       >
-        <MenuItem 
-          onClick={() => {
-            onView(college);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <ViewIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              View Details
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* View Details - Always show if user has VIEW permission */}
+        {canView && (
+          <MenuItem 
+            onClick={() => {
+              onView(college);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <ViewIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                View Details
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
         
-        <MenuItem 
-          onClick={() => {
-            onEdit(college);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              Edit
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* Edit - Only show if user has UPDATE permission */}
+        {canUpdate && (
+          <MenuItem 
+            onClick={() => {
+              onEdit(college);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                Edit
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
         
-        <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
+        {/* Divider - Only show if there are multiple sections */}
+        {((canView && (canUpdate || canDeletePermission)) || (canUpdate && canDeletePermission)) && (
+          <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
+        )}
         
-        <MenuItem 
-          onClick={() => {
-            onDelete(college);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
-              Delete
-            </Typography>
-          </ListItemText>
-        </MenuItem>
+        {/* Delete - Only show if user has DELETE permission */}
+        {canDeletePermission && (
+          <MenuItem 
+            onClick={() => {
+              onDelete(college);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
+              <DeleteIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
+                Delete
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
       </Menu>
     </>
   );
@@ -190,6 +230,11 @@ const CollegeManagement = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
 
+  // User permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
   // Modal states
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
@@ -197,8 +242,47 @@ const CollegeManagement = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [selectedCollege, setSelectedCollege] = useState(null);
 
+  // Fetch user permissions from API
+  useEffect(() => {
+    const fetchUserPermissions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${BASE_URL}/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.data.success) {
+          const userData = response.data.data;
+          setIsSuperAdmin(userData.is_super_admin || false);
+          setUserPermissions(userData.permissions || []);
+        }
+      } catch (err) {
+        console.error('Error fetching user permissions:', err);
+        setUserPermissions([]);
+      } finally {
+        setPermissionsLoaded(true);
+      }
+    };
+    
+    fetchUserPermissions();
+  }, []);
+
+  // Helper to check permission
+  const checkPermission = (action) => {
+    if (isSuperAdmin) return true;
+    return hasPermission(userPermissions, MODULES.COLLEGE_MANAGEMENT, PAGES.COLLEGE_MANAGEMENT, action);
+  };
+
+  // Permission checks
+  const canView = checkPermission(ACTIONS.VIEW);
+  const canCreate = checkPermission(ACTIONS.CREATE);
+  const canUpdate = checkPermission(ACTIONS.UPDATE);
+  const canDelete = checkPermission(ACTIONS.DELETE);
+
   // Load colleges from API with pagination and search
   const loadCollegesFromAPI = useCallback(async () => {
+    if (!canView && !isSuperAdmin) return;
+    
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
@@ -216,7 +300,6 @@ const CollegeManagement = () => {
       });
 
       if (response.data && response.data.data) {
-        // Transform API response to match component structure
         const transformedColleges = response.data.data.map(college => ({
           id: college.id,
           name: college.name,
@@ -247,19 +330,21 @@ const CollegeManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, [currentPage, rowsPerPage, searchTerm]);
+  }, [currentPage, rowsPerPage, searchTerm, canView, isSuperAdmin]);
 
   // Load colleges when dependencies change
   useEffect(() => {
-    loadCollegesFromAPI();
-  }, [loadCollegesFromAPI]);
+    if (permissionsLoaded && (canView || isSuperAdmin)) {
+      loadCollegesFromAPI();
+    }
+  }, [loadCollegesFromAPI, permissionsLoaded, canView, isSuperAdmin]);
 
   // Debounce search
   useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(searchInput);
-      setCurrentPage(1); // Reset to first page when searching
-      setPage(0); // Reset pagination index
+      setCurrentPage(1);
+      setPage(0);
     }, 500);
 
     return () => clearTimeout(timer);
@@ -267,33 +352,27 @@ const CollegeManagement = () => {
 
   // Handle add college
   const handleAddCollege = (newCollege) => {
-    // Transform the API response to match component structure
-    const transformedCollege = {
-      id: newCollege.id,
-      name: newCollege.name,
-      address: newCollege.address,
-      city: newCollege.city,
-      state: newCollege.state,
-      pincode: newCollege.pincode,
-      contact: newCollege.contact_number,
-      email: newCollege.email,
-      createdAt: newCollege.created_at,
-      updatedAt: newCollege.updated_at
-    };
-    
-    // If on first page and current list is not full, add to current list
     if (currentPage === 1 && colleges.length < rowsPerPage) {
+      const transformedCollege = {
+        id: newCollege.id,
+        name: newCollege.name,
+        address: newCollege.address,
+        city: newCollege.city,
+        state: newCollege.state,
+        pincode: newCollege.pincode,
+        contact: newCollege.contact_number,
+        email: newCollege.email,
+        createdAt: newCollege.created_at,
+        updatedAt: newCollege.updated_at
+      };
       setColleges(prev => [transformedCollege, ...prev]);
     }
-    
-    // Refresh to get updated total count
     loadCollegesFromAPI();
     showNotification('College added successfully!', 'success');
   };
 
   // Handle edit college
   const handleEditCollege = (updatedCollege) => {
-    // Transform the API response to match component structure
     const transformedCollege = {
       id: updatedCollege.id,
       name: updatedCollege.name,
@@ -307,7 +386,6 @@ const CollegeManagement = () => {
       updatedAt: updatedCollege.updated_at
     };
     
-    // Update local state
     setColleges(prev => prev.map(college => 
       college.id === transformedCollege.id ? transformedCollege : college
     ));
@@ -317,11 +395,8 @@ const CollegeManagement = () => {
 
   // Handle delete college
   const handleDeleteCollege = (collegeId) => {
-    // Remove from local state
     setColleges(prev => prev.filter(college => college.id !== collegeId));
     setSelected(prev => prev.filter(id => id !== collegeId));
-    
-    // Refresh to update pagination and total count
     loadCollegesFromAPI();
     showNotification('College deleted successfully!', 'success');
   };
@@ -334,6 +409,8 @@ const CollegeManagement = () => {
 
   // Handle select all on current page
   const handleSelectAll = (event) => {
+    if (!canDelete) return;
+    
     if (event.target.checked) {
       setSelected(colleges.map(college => college.id));
     } else {
@@ -343,6 +420,8 @@ const CollegeManagement = () => {
 
   // Handle single selection
   const handleSelect = (id) => {
+    if (!canDelete) return;
+    
     const selectedIndex = selected.indexOf(id);
     let newSelected = [];
     
@@ -357,12 +436,11 @@ const CollegeManagement = () => {
 
   // Handle bulk delete
   const handleBulkDelete = async () => {
-    if (selected.length === 0) return;
+    if (!canDelete || selected.length === 0) return;
     
     setLoading(true);
     try {
       const token = localStorage.getItem('token');
-      // Delete each selected college
       const deletePromises = selected.map(id => 
         axios.delete(`${BASE_URL}/colleges/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -370,16 +448,12 @@ const CollegeManagement = () => {
       );
       
       await Promise.all(deletePromises);
-      
-      // Clear selection
       setSelected([]);
       
-      // Check if current page becomes empty and not first page
       if (colleges.length === selected.length && currentPage > 1) {
         setCurrentPage(prev => prev - 1);
         setPage(prev => prev - 1);
       } else {
-        // Refresh current page
         loadCollegesFromAPI();
       }
       
@@ -396,7 +470,7 @@ const CollegeManagement = () => {
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
     setCurrentPage(newPage + 1);
-    setSelected([]); // Clear selection when changing page
+    setSelected([]);
   };
 
   // Handle rows per page change
@@ -433,6 +507,16 @@ const CollegeManagement = () => {
     }
     return name.substring(0, 2).toUpperCase();
   };
+
+  // Show loading state while permissions are being fetched
+  if (!permissionsLoaded) {
+    return <LoadingState />;
+  }
+
+  // If user doesn't have view permission, show access denied
+  if (!canView && !isSuperAdmin) {
+    return <AccessDenied />;
+  }
 
   return (
     <Box>
@@ -503,24 +587,29 @@ const CollegeManagement = () => {
                 }
               }}
             />
-            {searchTerm && (
-              <Chip 
-                label={`Search: ${searchTerm}`}
-                size="small"
-                onDelete={() => {
-                  setSearchInput('');
-                  setSearchTerm('');
-                  setCurrentPage(1);
-                  setPage(0);
-                }}
-                sx={{ height: 28, fontSize: '0.7rem' }}
-              />
-            )}
           </Stack>
 
-          {/* Action Buttons */}
+          {/* Action Buttons - Conditionally rendered based on permissions */}
           <Stack direction="row" spacing={1.5} alignItems="center">
-            {selected.length > 0 && (
+            {/* Refresh Button */}
+            {/* <Tooltip title="Refresh">
+              <IconButton
+                size="small"
+                onClick={handleRefresh}
+                disabled={loading}
+                sx={{
+                  color: COLORS.text.secondary,
+                  '&:hover': {
+                    bgcolor: `${COLORS.accent}20`
+                  }
+                }}
+              >
+                <RefreshIcon fontSize="small" />
+              </IconButton>
+            </Tooltip> */}
+
+            {/* Bulk Delete Button - Only show if user has delete permission */}
+            {canDelete && selected.length > 0 && (
               <Button
                 variant="outlined"
                 color="error"
@@ -545,49 +634,29 @@ const CollegeManagement = () => {
               </Button>
             )}
             
-            <Button
-              variant="outlined"
-              startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
-              onClick={handleRefresh}
-              disabled={loading}
-              sx={{ 
-                height: 36,
-                borderRadius: 1.5,
-                textTransform: 'none',
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                borderColor: COLORS.border,
-                color: COLORS.text.secondary,
-                '&:hover': {
-                  borderColor: COLORS.accent,
-                  color: COLORS.accent,
-                  bgcolor: `${COLORS.accent}10`
-                }
-              }}
-            >
-              Refresh
-            </Button>
-
-            <Button
-              variant="contained"
-              startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
-              onClick={() => setOpenAddModal(true)}
-              disabled={loading}
-              sx={{
-                height: 36,
-                borderRadius: 1.5,
-                bgcolor: COLORS.primary,
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                textTransform: 'none',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  bgcolor: COLORS.primaryDark,
-                }
-              }}
-            >
-              Add College
-            </Button>
+            {/* Add College Button - Only show if user has create permission */}
+            {canCreate && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
+                onClick={() => setOpenAddModal(true)}
+                disabled={loading}
+                sx={{
+                  height: 36,
+                  borderRadius: 1.5,
+                  bgcolor: COLORS.primary,
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                  '&:hover': {
+                    bgcolor: COLORS.primaryDark,
+                  }
+                }}
+              >
+                Add College
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Paper>
@@ -611,25 +680,29 @@ const CollegeManagement = () => {
                   py: 1.5
                 }
               }}>
-                <TableCell padding="checkbox" sx={{ width: 40 }}>
-                  <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < colleges.length}
-                    checked={colleges.length > 0 && selected.length === colleges.length}
-                    onChange={handleSelectAll}
-                    sx={{
-                      color: COLORS.text.light,
-                      '&.Mui-checked': {
+                {/* Checkbox Column - Only show if user has delete permission */}
+                {canDelete && (
+                  <TableCell padding="checkbox" sx={{ width: 40 }}>
+                    <Checkbox
+                      indeterminate={selected.length > 0 && selected.length < colleges.length}
+                      checked={colleges.length > 0 && selected.length === colleges.length}
+                      onChange={handleSelectAll}
+                      disabled={loading || colleges.length === 0}
+                      sx={{
                         color: COLORS.text.light,
-                      },
-                      '&.MuiCheckbox-indeterminate': {
-                        color: COLORS.text.light,
-                      },
-                      '& .MuiSvgIcon-root': {
-                        fontSize: '1.25rem'
-                      }
-                    }}
-                  />
-                </TableCell>
+                        '&.Mui-checked': {
+                          color: COLORS.text.light,
+                        },
+                        '&.MuiCheckbox-indeterminate': {
+                          color: COLORS.text.light,
+                        },
+                        '& .MuiSvgIcon-root': {
+                          fontSize: '1.25rem'
+                        }
+                      }}
+                    />
+                  </TableCell>
+                )}
                 <TableCell sx={{ 
                   fontWeight: 600, 
                   fontSize: '0.7rem',
@@ -668,7 +741,7 @@ const CollegeManagement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={canDelete ? 5 : 4} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
                       Loading colleges...
@@ -677,7 +750,7 @@ const CollegeManagement = () => {
                 </TableRow>
               ) : colleges.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={canDelete ? 5 : 4} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <BusinessIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
@@ -717,21 +790,24 @@ const CollegeManagement = () => {
                         }
                       }}
                     >
-                      <TableCell padding="checkbox" sx={{ width: 40 }}>
-                        <Checkbox
-                          checked={isSelected}
-                          onChange={() => handleSelect(college.id)}
-                          sx={{
-                            color: COLORS.accent,
-                            '&.Mui-checked': {
+                      {/* Checkbox Column - Only show if user has delete permission */}
+                      {canDelete && (
+                        <TableCell padding="checkbox" sx={{ width: 40 }}>
+                          <Checkbox
+                            checked={isSelected}
+                            onChange={() => handleSelect(college.id)}
+                            sx={{
                               color: COLORS.accent,
-                            },
-                            '& .MuiSvgIcon-root': {
-                              fontSize: '1.25rem'
-                            }
-                          }}
-                        />
-                      </TableCell>
+                              '&.Mui-checked': {
+                                color: COLORS.accent,
+                              },
+                              '& .MuiSvgIcon-root': {
+                                fontSize: '1.25rem'
+                              }
+                            }}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <Stack direction="row" spacing={1.5} alignItems="center">
                           <Avatar 
@@ -787,6 +863,9 @@ const CollegeManagement = () => {
                           onView={(c) => { setSelectedCollege(c); setOpenViewModal(true); }}
                           onEdit={(c) => { setSelectedCollege(c); setOpenEditModal(true); }}
                           onDelete={(c) => { setSelectedCollege(c); setOpenDeleteDialog(true); }}
+                          canView={canView}
+                          canUpdate={canUpdate}
+                          canDelete={canDelete}
                         />
                       </TableCell>
                     </TableRow>
@@ -822,24 +901,28 @@ const CollegeManagement = () => {
         />
       </Paper>
 
-      {/* Modal Components */}
-      <AddCollege 
-        open={openAddModal}
-        onClose={() => setOpenAddModal(false)}
-        onAdd={handleAddCollege}
-      />
+      {/* Modal Components - Only render if user has appropriate permissions */}
+      {canCreate && (
+        <AddCollege 
+          open={openAddModal}
+          onClose={() => setOpenAddModal(false)}
+          onAdd={handleAddCollege}
+        />
+      )}
 
       {selectedCollege && (
         <>
-          <EditCollege 
-            open={openEditModal}
-            onClose={() => {
-              setOpenEditModal(false);
-              setSelectedCollege(null);
-            }}
-            college={selectedCollege}
-            onUpdate={handleEditCollege}
-          />
+          {canUpdate && (
+            <EditCollege 
+              open={openEditModal}
+              onClose={() => {
+                setOpenEditModal(false);
+                setSelectedCollege(null);
+              }}
+              college={selectedCollege}
+              onUpdate={handleEditCollege}
+            />
+          )}
 
           <ViewCollege 
             open={openViewModal}
@@ -854,15 +937,17 @@ const CollegeManagement = () => {
             }}
           />
 
-          <DeleteCollege 
-            open={openDeleteDialog}
-            onClose={() => {
-              setOpenDeleteDialog(false);
-              setSelectedCollege(null);
-            }}
-            college={selectedCollege}
-            onDelete={handleDeleteCollege}
-          />
+          {canDelete && (
+            <DeleteCollege 
+              open={openDeleteDialog}
+              onClose={() => {
+                setOpenDeleteDialog(false);
+                setSelectedCollege(null);
+              }}
+              college={selectedCollege}
+              onDelete={handleDeleteCollege}
+            />
+          )}
         </>
       )}
 

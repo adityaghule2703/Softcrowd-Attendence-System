@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -27,13 +27,6 @@ import {
   Alert,
   CircularProgress,
   Snackbar,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  FormControlLabel,
-  Switch,
-  Grid,
   Collapse
 } from '@mui/material';
 import {
@@ -45,13 +38,12 @@ import {
   MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
   Security as SecurityIcon,
-  Assignment as AssignmentIcon,
-  Close as CloseIcon,
-  Save as SaveIcon,
   KeyboardArrowDown as KeyboardArrowDownIcon,
   KeyboardArrowRight as KeyboardArrowRightIcon
 } from '@mui/icons-material';
 import { CheckCircle, XCircle } from 'lucide-react';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
 
 // Import modal components
 import AddRole from './AddRole';
@@ -59,7 +51,7 @@ import EditRole from './EditRole';
 import ViewRole from './ViewRole';
 import DeleteRole from './DeleteRole';
 
-// Color constants (same as StudentManagement)
+// Color constants
 const COLORS = {
   primary: '#0F172A',
   primaryLight: '#1E293B',
@@ -80,28 +72,32 @@ const COLORS = {
   border: '#E2E8F0'
 };
 
-// All available modules/pages
+// Available modules/pages from the app routes
 const ALL_MODULES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
+  { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration' },
+  { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
+  { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters' },
+  { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
+  { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
+  { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
+  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
   { module: 'USERS', page: 'Users', category: 'Administration' },
   { module: 'ROLES', page: 'Roles', category: 'Administration' },
-  { module: 'COMPANY_MASTER', page: 'Company Master', category: 'Masters' },
-  { module: 'CUSTOMER_MASTER', page: 'Customer Master', category: 'Masters' },
-  { module: 'EMPLOYEE_MASTER', page: 'Employee Master', category: 'Masters' },
-  { module: 'SALES_ORDER', page: 'Sales Order', category: 'Transactions' },
-  { module: 'PURCHASE_ORDER', page: 'Purchase Order', category: 'Transactions' },
-  { module: 'REPORTS', page: 'Reports', category: 'Reports' },
+  { module: 'ATTENDANCE', page: 'Attendance', category: 'Operations' },
+  { module: 'REPORTS', page: 'Reports', category: 'Reports' }
 ];
 
-// All available actions
-const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE', 'EXPORT', 'APPROVE'];
+// All available actions - Only Create, View, Edit, Delete
+const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
 // Permissions Matrix Component for expanded row
 const PermissionsMatrix = ({ permissions = [] }) => {
   const permissionMap = React.useMemo(() => {
     const map = {};
     permissions.forEach(perm => {
-      const key = `${perm.module}_${perm.action}`;
+      const key = `${perm.module_key}_${perm.action}`;
       map[key] = true;
     });
     return map;
@@ -118,9 +114,11 @@ const PermissionsMatrix = ({ permissions = [] }) => {
       <Table size="small" sx={{ minWidth: 600 }}>
         <TableHead>
           <TableRow sx={{ bgcolor: COLORS.background.tableHeader }}>
-            <TableCell sx={{ color: COLORS.text.light, fontWeight: 600, fontSize: '0.7rem' }}>Module</TableCell>
+            <TableCell sx={{ color: COLORS.text.light, fontWeight: 600, fontSize: '0.7rem', width: '40%' }}>
+              Module / Page
+            </TableCell>
             {ALL_ACTIONS.map(action => (
-              <TableCell key={action} align="center" sx={{ color: COLORS.text.light, fontWeight: 600, fontSize: '0.7rem' }}>
+              <TableCell key={action} align="center" sx={{ color: COLORS.text.light, fontWeight: 600, fontSize: '0.7rem', width: '15%' }}>
                 {action}
               </TableCell>
             ))}
@@ -130,20 +128,28 @@ const PermissionsMatrix = ({ permissions = [] }) => {
           {Object.entries(groupedModules).map(([category, modules]) => (
             <React.Fragment key={category}>
               <TableRow sx={{ bgcolor: `${COLORS.primary}10` }}>
-                <TableCell colSpan={ALL_ACTIONS.length + 1} sx={{ fontWeight: 600, fontSize: '0.7rem', color: COLORS.primary }}>
+                <TableCell colSpan={ALL_ACTIONS.length + 1} sx={{ fontWeight: 600, fontSize: '0.75rem', color: COLORS.primary, py: 1 }}>
                   {category}
                 </TableCell>
               </TableRow>
               {modules.map((item) => (
                 <TableRow key={item.module} hover>
-                  <TableCell sx={{ fontSize: '0.75rem' }}>{item.page}</TableCell>
+                  <TableCell sx={{ fontSize: '0.75rem', fontWeight: 500 }}>{item.page}</TableCell>
                   {ALL_ACTIONS.map(action => (
                     <TableCell key={action} align="center">
                       <Checkbox
                         checked={!!permissionMap[`${item.module}_${action}`]}
                         disabled
                         size="small"
-                        sx={{ color: COLORS.accent, '&.Mui-checked': { color: COLORS.accent } }}
+                        sx={{ 
+                          color: COLORS.accent, 
+                          '&.Mui-checked': { 
+                            color: COLORS.accent 
+                          },
+                          '& .MuiSvgIcon-root': {
+                            fontSize: '1rem'
+                          }
+                        }}
                       />
                     </TableCell>
                   ))}
@@ -298,12 +304,11 @@ const ActionMenu = ({ role, onView, onEdit, onDelete }) => {
 
 const RolesManagement = () => {
   const [roles, setRoles] = useState([]);
-  const [filteredRoles, setFilteredRoles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [selected, setSelected] = useState([]);
   const [expandedRow, setExpandedRow] = useState(null);
   const [snackbar, setSnackbar] = useState({
@@ -312,6 +317,11 @@ const RolesManagement = () => {
     severity: 'success'
   });
 
+  // Server-side pagination states
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+
   // Modal states
   const [openAddModal, setOpenAddModal] = useState(false);
   const [openEditModal, setOpenEditModal] = useState(false);
@@ -319,118 +329,77 @@ const RolesManagement = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [selectedRole, setSelectedRole] = useState(null);
 
-  // Load roles from localStorage
-  useEffect(() => {
-    loadRolesFromStorage();
-  }, []);
-
-  const loadRolesFromStorage = () => {
+  // Load roles from API with pagination and search
+  const loadRolesFromAPI = useCallback(async () => {
     setLoading(true);
     try {
-      const storedRoles = localStorage.getItem('roles');
-      if (storedRoles) {
-        const parsedRoles = JSON.parse(storedRoles);
-        setRoles(parsedRoles);
-        setFilteredRoles(parsedRoles);
+      const token = localStorage.getItem('token');
+      const params = {
+        page: currentPage,
+        per_page: rowsPerPage,
+        search: searchTerm
+      };
+      
+      const response = await axios.get(`${BASE_URL}/roles`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: params
+      });
+
+      if (response.data && response.data.success) {
+        // Transform API response to match component structure
+        const transformedRoles = response.data.data.map(role => ({
+          id: role.id,
+          RoleName: role.name,
+          Description: role.description,
+          IsActive: role.is_active,
+          isSuperAdmin: role.is_super_admin,
+          permissions: role.permissions || [],
+          permissionsCount: role.permissions?.length || 0,
+          CreatedAt: role.created_at,
+          UpdatedAt: role.updated_at
+        }));
+        
+        setRoles(transformedRoles);
+        setTotalCount(response.data.meta?.total || 0);
+        setLastPage(response.data.meta?.last_page || 1);
       } else {
-        // Default roles
-        const defaultRoles = [
-          {
-            id: 'role_1',
-            RoleName: 'Super Admin',
-            Description: 'Full system access with all permissions',
-            IsActive: true,
-            isSuperAdmin: true,
-            permissions: ALL_MODULES.flatMap(module => 
-              ALL_ACTIONS.map(action => ({ module: module.module, action }))
-            ),
-            permissionsCount: ALL_MODULES.length * ALL_ACTIONS.length,
-            CreatedAt: new Date().toISOString(),
-            UpdatedAt: new Date().toISOString()
-          },
-          {
-            id: 'role_2',
-            RoleName: 'Admin',
-            Description: 'Administrative access with most permissions',
-            IsActive: true,
-            isSuperAdmin: false,
-            permissions: [
-              { module: 'DASHBOARD', action: 'VIEW' },
-              { module: 'USERS', action: 'VIEW' },
-              { module: 'USERS', action: 'CREATE' },
-              { module: 'USERS', action: 'UPDATE' },
-              { module: 'ROLES', action: 'VIEW' },
-            ],
-            permissionsCount: 5,
-            CreatedAt: new Date().toISOString(),
-            UpdatedAt: new Date().toISOString()
-          },
-          {
-            id: 'role_3',
-            RoleName: 'User',
-            Description: 'Basic user access',
-            IsActive: true,
-            isSuperAdmin: false,
-            permissions: [
-              { module: 'DASHBOARD', action: 'VIEW' },
-              { module: 'SALES_ORDER', action: 'VIEW' },
-            ],
-            permissionsCount: 2,
-            CreatedAt: new Date().toISOString(),
-            UpdatedAt: new Date().toISOString()
-          }
-        ];
-        setRoles(defaultRoles);
-        setFilteredRoles(defaultRoles);
-        localStorage.setItem('roles', JSON.stringify(defaultRoles));
+        setRoles([]);
+        setTotalCount(0);
+        setLastPage(1);
       }
     } catch (error) {
       console.error('Error loading roles:', error);
-      showNotification('Failed to load roles', 'error');
+      showNotification(error.response?.data?.message || 'Failed to load roles', 'error');
+      setRoles([]);
+      setTotalCount(0);
+      setLastPage(1);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentPage, rowsPerPage, searchTerm]);
 
-  const saveRolesToStorage = (updatedRoles) => {
-    localStorage.setItem('roles', JSON.stringify(updatedRoles));
-  };
-
-  // Handle search
-  const handleSearch = () => {
-    if (!searchTerm) {
-      setFilteredRoles(roles);
-      return;
-    }
-    
-    const value = searchTerm.toLowerCase();
-    const filtered = roles.filter(role =>
-      role.RoleName?.toLowerCase().includes(value) ||
-      role.Description?.toLowerCase().includes(value)
-    );
-    
-    setFilteredRoles(filtered);
-  };
+  // Load data when dependencies change
+  useEffect(() => {
+    loadRolesFromAPI();
+  }, [loadRolesFromAPI]);
 
   // Debounce search
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(searchInput);
+      setCurrentPage(1);
       setPage(0);
     }, 500);
 
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Apply search when searchTerm or roles change
-  React.useEffect(() => {
-    handleSearch();
-  }, [searchTerm, roles]);
-
-  // Handle select all
+  // Handle select all on current page
   const handleSelectAll = (event) => {
     if (event.target.checked) {
-      setSelected(filteredRoles.map(role => role.id));
+      setSelected(roles.map(role => role.id));
     } else {
       setSelected([]);
     }
@@ -453,67 +422,89 @@ const RolesManagement = () => {
   // Handle page change
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
+    setCurrentPage(newPage + 1);
     setSelected([]);
     setExpandedRow(null);
   };
 
   // Handle rows per page change
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setPage(0);
+    setCurrentPage(1);
     setSelected([]);
     setExpandedRow(null);
   };
 
   // Handle refresh
   const handleRefresh = () => {
-    loadRolesFromStorage();
+    loadRolesFromAPI();
     showNotification('Data refreshed successfully', 'success');
   };
 
   // Handle add role
   const handleAddRole = (newRole) => {
-    const roleWithId = {
-      ...newRole,
-      id: `role_${Date.now()}`,
-      permissionsCount: newRole.permissions?.length || 0,
-      CreatedAt: new Date().toISOString(),
-      UpdatedAt: new Date().toISOString()
-    };
-    const updatedRoles = [...roles, roleWithId];
-    setRoles(updatedRoles);
-    saveRolesToStorage(updatedRoles);
+    loadRolesFromAPI();
     showNotification('Role added successfully!', 'success');
   };
 
   // Handle edit role
   const handleEditRole = (updatedRole) => {
-    const updatedRoles = roles.map(role =>
-      role.id === updatedRole.id 
-        ? { ...updatedRole, permissionsCount: updatedRole.permissions?.length || 0, UpdatedAt: new Date().toISOString() }
-        : role
-    );
-    setRoles(updatedRoles);
-    saveRolesToStorage(updatedRoles);
+    loadRolesFromAPI();
     showNotification('Role updated successfully!', 'success');
   };
 
   // Handle delete role
-  const handleDeleteRole = (roleId) => {
-    const updatedRoles = roles.filter(role => role.id !== roleId);
-    setRoles(updatedRoles);
-    setSelected(selected.filter(id => id !== roleId));
-    saveRolesToStorage(updatedRoles);
-    showNotification('Role deleted successfully!', 'success');
+  const handleDeleteRole = async (roleId) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${BASE_URL}/roles/${roleId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      loadRolesFromAPI();
+      showNotification('Role deleted successfully!', 'success');
+    } catch (error) {
+      console.error('Error deleting role:', error);
+      showNotification(error.response?.data?.message || 'Failed to delete role', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Handle bulk delete
-  const handleBulkDelete = () => {
-    const updatedRoles = roles.filter(role => !selected.includes(role.id));
-    setRoles(updatedRoles);
-    setSelected([]);
-    saveRolesToStorage(updatedRoles);
-    showNotification(`${selected.length} roles deleted successfully`, 'success');
+  const handleBulkDelete = async () => {
+    if (selected.length === 0) return;
+    
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      const deletePromises = selected.map(id => 
+        axios.delete(`${BASE_URL}/roles/${id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      );
+      
+      await Promise.all(deletePromises);
+      
+      setSelected([]);
+      
+      if (roles.length === selected.length && currentPage > 1) {
+        setCurrentPage(prev => prev - 1);
+        setPage(prev => prev - 1);
+      } else {
+        loadRolesFromAPI();
+      }
+      
+      showNotification(`${selected.length} roles deleted successfully`, 'success');
+    } catch (error) {
+      console.error('Error bulk deleting roles:', error);
+      showNotification('Failed to delete some roles', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Show notification
@@ -528,7 +519,7 @@ const RolesManagement = () => {
   // Get avatar color based on role name
   const getAvatarColor = (name) => {
     const colors = [COLORS.accent, '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
-    const charCode = name.charCodeAt(0) || 0;
+    const charCode = name?.charCodeAt(0) || 0;
     return colors[charCode % colors.length];
   };
 
@@ -545,12 +536,6 @@ const RolesManagement = () => {
   const handleExpandRow = (roleId) => {
     setExpandedRow(expandedRow === roleId ? null : roleId);
   };
-
-  // Paginated roles
-  const paginatedRoles = filteredRoles.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
 
   return (
     <Box>
@@ -631,6 +616,7 @@ const RolesManagement = () => {
                 color="error"
                 startIcon={<DeleteIcon sx={{ fontSize: '1rem' }} />}
                 onClick={handleBulkDelete}
+                disabled={loading}
                 sx={{ 
                   height: 36,
                   borderRadius: 1.5,
@@ -649,10 +635,11 @@ const RolesManagement = () => {
               </Button>
             )}
             
-            <Button
+            {/* <Button
               variant="outlined"
               startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
               onClick={handleRefresh}
+              disabled={loading}
               sx={{ 
                 height: 36,
                 borderRadius: 1.5,
@@ -669,12 +656,13 @@ const RolesManagement = () => {
               }}
             >
               Refresh
-            </Button>
+            </Button> */}
 
             <Button
               variant="contained"
               startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
               onClick={() => setOpenAddModal(true)}
+              disabled={loading}
               sx={{
                 height: 36,
                 borderRadius: 1.5,
@@ -715,8 +703,8 @@ const RolesManagement = () => {
               }}>
                 <TableCell padding="checkbox" sx={{ width: 40 }}>
                   <Checkbox
-                    indeterminate={selected.length > 0 && selected.length < filteredRoles.length}
-                    checked={filteredRoles.length > 0 && selected.length === filteredRoles.length}
+                    indeterminate={selected.length > 0 && selected.length < roles.length}
+                    checked={roles.length > 0 && selected.length === roles.length}
                     onChange={handleSelectAll}
                     sx={{
                       color: COLORS.text.light,
@@ -794,7 +782,7 @@ const RolesManagement = () => {
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : paginatedRoles.length === 0 ? (
+              ) : roles.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
@@ -809,7 +797,7 @@ const RolesManagement = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedRoles.map((role) => {
+                roles.map((role) => {
                   const isSelected = selected.includes(role.id);
                   const avatarColor = getAvatarColor(role.RoleName);
                   const isExpanded = expandedRow === role.id;
@@ -906,7 +894,7 @@ const RolesManagement = () => {
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={`${role.permissionsCount || role.permissions?.length || 0} permissions`}
+                            label={`${role.permissionsCount} permissions`}
                             size="small"
                             sx={{
                               bgcolor: `${COLORS.accent}10`,
@@ -922,7 +910,7 @@ const RolesManagement = () => {
                         </TableCell>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                            {new Date(role.CreatedAt).toLocaleDateString()}
+                            {role.CreatedAt ? new Date(role.CreatedAt).toLocaleDateString() : 'N/A'}
                           </Typography>
                         </TableCell>
                         <TableCell align="center" sx={{ width: 60 }}>
@@ -939,8 +927,8 @@ const RolesManagement = () => {
                       <TableRow>
                         <TableCell colSpan={8} sx={{ p: 0 }}>
                           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                            <Box sx={{ p: 2, bgcolor: COLORS.background.light, borderTop: `1px solid ${COLORS.border}` }}>
-                              <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary, mb: 2 }}>
+                            <Box sx={{ p: 2.5, bgcolor: COLORS.background.light, borderTop: `1px solid ${COLORS.border}` }}>
+                              <Typography variant="subtitle2" sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.text.primary, mb: 2 }}>
                                 Permissions Matrix
                               </Typography>
                               <PermissionsMatrix permissions={role.permissions || []} />
@@ -960,7 +948,7 @@ const RolesManagement = () => {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25, 50]}
           component="div"
-          count={filteredRoles.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}

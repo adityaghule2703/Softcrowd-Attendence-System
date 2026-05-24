@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -41,6 +41,9 @@ import {
   KeyboardArrowRight as KeyboardArrowRightIcon
 } from '@mui/icons-material';
 import { CheckCircle, XCircle } from 'lucide-react';
+import axios from 'axios';
+import BASE_URL from '../../config/Config';
+import { ACTIONS, hasPermission, MODULES, PAGES } from '../../utils/modulePermissions';
 
 // Import modal components
 import AddUser from './AddUser';
@@ -48,7 +51,7 @@ import EditUser from './EditUser';
 import ViewUser from './ViewUser';
 import DeleteUser from './DeleteUser';
 
-// Color constants (matching RolesManagement)
+// Color constants
 const COLORS = {
   primary: '#0F172A',
   primaryLight: '#1E293B',
@@ -68,6 +71,54 @@ const COLORS = {
   },
   border: '#E2E8F0'
 };
+
+// All available actions
+const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
+
+// All possible pages/modules - This ensures ALL pages are shown
+const ALL_PAGES = [
+  { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
+  { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
+  { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters' },
+  { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
+  { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
+  { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
+  { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
+  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions' },
+  { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration' },
+  { module: 'USERS', page: 'Users', category: 'Administration' },
+  { module: 'ROLES', page: 'Roles', category: 'Administration' },
+  { module: 'REPORTS', page: 'Reports', category: 'Reports' }
+];
+
+// Group all pages by category
+const groupedAllPages = ALL_PAGES.reduce((acc, page) => {
+  if (!acc[page.category]) {
+    acc[page.category] = [];
+  }
+  acc[page.category].push(page);
+  return acc;
+}, {});
+
+// Loading state component
+const LoadingState = () => (
+  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
+    <CircularProgress size={40} sx={{ color: COLORS.primary }} />
+  </Box>
+);
+
+// Access Denied component
+const AccessDenied = () => (
+  <Box sx={{ p: 4, textAlign: 'center' }}>
+    <Typography variant="h6" sx={{ color: COLORS.text.primary, mb: 1, fontWeight: 600 }}>
+      Access Denied
+    </Typography>
+    <Typography variant="body2" sx={{ color: COLORS.text.secondary }}>
+      You don't have permission to view this page. Please contact your administrator.
+    </Typography>
+  </Box>
+);
 
 // Status Chip Component
 const StatusChip = ({ isActive }) => {
@@ -107,142 +158,25 @@ const StatusChip = ({ isActive }) => {
   );
 };
 
-// Action Menu Component
-const ActionMenu = ({ user, onView, onEdit, onDelete }) => {
-  const [anchorEl, setAnchorEl] = useState(null);
-  const open = Boolean(anchorEl);
+// Permissions Matrix Component - Shows ALL pages
+const PermissionsMatrix = ({ userPermissions = [], loading = false }) => {
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 4 }}>
+        <CircularProgress size={24} sx={{ color: COLORS.accent }} />
+        <Typography sx={{ ml: 1, fontSize: '0.75rem', color: COLORS.text.secondary }}>
+          Loading permissions...
+        </Typography>
+      </Box>
+    );
+  }
 
-  const handleClick = (event) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
-  return (
-    <>
-      <Tooltip title="Actions">
-        <IconButton
-          size="small"
-          onClick={handleClick}
-          sx={{
-            color: COLORS.text.secondary,
-            '&:hover': {
-              bgcolor: `${COLORS.accent}20`
-            }
-          }}
-        >
-          <MoreVertIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      <Menu
-        anchorEl={anchorEl}
-        open={open}
-        onClose={handleClose}
-        PaperProps={{
-          elevation: 3,
-          sx: {
-            mt: 1,
-            minWidth: 180,
-            borderRadius: 2,
-            border: `1px solid ${COLORS.border}`,
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-          }
-        }}
-      >
-        <MenuItem 
-          onClick={() => {
-            onView(user);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <ViewIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              View Details
-            </Typography>
-          </ListItemText>
-        </MenuItem>
-        
-        <MenuItem 
-          onClick={() => {
-            onEdit(user);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
-            <EditIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
-              Edit
-            </Typography>
-          </ListItemText>
-        </MenuItem>
-        
-        <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
-        
-        <MenuItem 
-          onClick={() => {
-            onDelete(user);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
-              Delete
-            </Typography>
-          </ListItemText>
-        </MenuItem>
-      </Menu>
-    </>
-  );
-};
-
-// Permissions Matrix Component
-const PermissionsMatrix = ({ permissions = [] }) => {
-  const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
-  
-  const ALL_PAGES = [
-    { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
-    { module: 'DOMAIN_MANAGEMENT', page: 'Domain Management', category: 'Masters' },
-    { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
-    { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
-    { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
-    { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
-    { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
-    { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
-    { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions' },
-    { module: 'USERS', page: 'Users', category: 'Administration' },
-    { module: 'ROLES', page: 'Roles', category: 'Administration' },
-    { module: 'REPORTS', page: 'Reports', category: 'Reports' },
-  ];
-
-  const groupedPages = ALL_PAGES.reduce((acc, page) => {
-    if (!acc[page.category]) {
-      acc[page.category] = [];
-    }
-    acc[page.category].push(page);
-    return acc;
-  }, {});
-
-  const permissionMap = React.useMemo(() => {
-    const map = {};
-    permissions.forEach(perm => {
-      const key = `${perm.module}_${perm.action}`;
-      map[key] = true;
-    });
-    return map;
-  }, [permissions]);
+  // Create a permission map for quick lookup
+  const permissionMap = {};
+  userPermissions.forEach(perm => {
+    const key = `${perm.module_key}_${perm.action}`;
+    permissionMap[key] = true;
+  });
 
   return (
     <Box sx={{ overflowX: 'auto' }}>
@@ -280,7 +214,7 @@ const PermissionsMatrix = ({ permissions = [] }) => {
           </TableRow>
         </TableHead>
         <TableBody>
-          {Object.entries(groupedPages).map(([category, pages]) => (
+          {Object.entries(groupedAllPages).map(([category, pages]) => (
             <React.Fragment key={category}>
               <TableRow sx={{ bgcolor: `${COLORS.accent}10` }}>
                 <TableCell 
@@ -320,11 +254,11 @@ const PermissionsMatrix = ({ permissions = [] }) => {
                     </Box>
                   </TableCell>
                   {ALL_ACTIONS.map((action) => {
-                    const isChecked = !!permissionMap[`${page.module}_${action}`];
+                    const hasPermission = !!permissionMap[`${page.module}_${action}`];
                     return (
                       <TableCell key={action} align="center" sx={{ p: 1 }}>
                         <Checkbox
-                          checked={isChecked}
+                          checked={hasPermission}
                           disabled
                           size="small"
                           sx={{
@@ -350,21 +284,147 @@ const PermissionsMatrix = ({ permissions = [] }) => {
   );
 };
 
+// Action Menu Component with permission checks
+const ActionMenu = ({ user, onView, onEdit, onDelete, canView, canUpdate, canDelete: canDeletePermission }) => {
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+
+  const handleClick = (event) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const hasAnyAction = canView || canUpdate || canDeletePermission;
+
+  if (!hasAnyAction) {
+    return null;
+  }
+
+  return (
+    <>
+      <Tooltip title="Actions">
+        <IconButton
+          size="small"
+          onClick={handleClick}
+          sx={{
+            color: COLORS.text.secondary,
+            '&:hover': {
+              bgcolor: `${COLORS.accent}20`
+            }
+          }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <Menu
+        anchorEl={anchorEl}
+        open={open}
+        onClose={handleClose}
+        PaperProps={{
+          elevation: 3,
+          sx: {
+            mt: 1,
+            minWidth: 180,
+            borderRadius: 2,
+            border: `1px solid ${COLORS.border}`,
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+          }
+        }}
+      >
+        {canView && (
+          <MenuItem 
+            onClick={() => {
+              onView(user);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <ViewIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                View Details
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
+        
+        {canUpdate && (
+          <MenuItem 
+            onClick={() => {
+              onEdit(user);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: COLORS.accent, minWidth: 36 }}>
+              <EditIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
+                Edit
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
+        
+        {((canView && (canUpdate || canDeletePermission)) || (canUpdate && canDeletePermission)) && (
+          <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
+        )}
+        
+        {canDeletePermission && (
+          <MenuItem 
+            onClick={() => {
+              onDelete(user);
+              handleClose();
+            }}
+            sx={{ py: 1.5 }}
+          >
+            <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
+              <DeleteIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>
+              <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
+                Delete
+              </Typography>
+            </ListItemText>
+          </MenuItem>
+        )}
+      </Menu>
+    </>
+  );
+};
+
 const Users = () => {
   const [users, setUsers] = useState([]);
-  const [filteredUsers, setFilteredUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
   const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(5);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
   const [expandedRow, setExpandedRow] = useState(null);
+  const [expandedUserPermissions, setExpandedUserPermissions] = useState({});
+  const [expandedLoading, setExpandedLoading] = useState({});
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
     severity: 'success'
   });
+
+  // User permissions state
+  const [userPermissions, setUserPermissions] = useState([]);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  // Server-side pagination states
+  const [totalCount, setTotalCount] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [lastPage, setLastPage] = useState(1);
 
   // Modal states
   const [openAddModal, setOpenAddModal] = useState(false);
@@ -372,173 +432,261 @@ const Users = () => {
   const [openViewModal, setOpenViewModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [selectedUserId, setSelectedUserId] = useState(null);
 
-  // Load users and roles from localStorage
+  // Fetch user permissions from API
   useEffect(() => {
-    loadUsersFromStorage();
-    loadRolesFromStorage();
+    const fetchUserPermissions = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await axios.get(`${BASE_URL}/me`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.data.success) {
+          const userData = response.data.data;
+          setIsSuperAdmin(userData.is_super_admin || false);
+          setUserPermissions(userData.permissions || []);
+        }
+      } catch (err) {
+        console.error('Error fetching user permissions:', err);
+        setUserPermissions([]);
+      } finally {
+        setPermissionsLoaded(true);
+      }
+    };
+    
+    fetchUserPermissions();
   }, []);
 
-  const loadUsersFromStorage = () => {
-    setLoading(true);
+  // Helper to check permission
+  const checkPermission = (action) => {
+    if (isSuperAdmin) return true;
+    return hasPermission(userPermissions, MODULES.USERS, PAGES.USERS, action);
+  };
+
+  // Permission checks
+  const canView = checkPermission(ACTIONS.VIEW);
+  const canCreate = checkPermission(ACTIONS.CREATE);
+  const canUpdate = checkPermission(ACTIONS.UPDATE);
+  const canDelete = checkPermission(ACTIONS.DELETE);
+
+  // Fetch user_permissions by ID
+  const fetchUserPermissionsById = async (userId) => {
+    setExpandedLoading(prev => ({ ...prev, [userId]: true }));
     try {
-      const storedUsers = localStorage.getItem('users');
-      if (storedUsers) {
-        const parsedUsers = JSON.parse(storedUsers);
-        setUsers(parsedUsers);
-        setFilteredUsers(parsedUsers);
-      } else {
-        // Default demo users
-        const defaultUsers = [
-          {
-            id: 'user_1',
-            Username: 'admin',
-            Email: 'admin@softcrowd.com',
-            RoleName: 'Super Admin',
-            RoleId: 'role_1',
-            IsActive: true,
-            isSuperAdmin: true,
-            permissions: [],
-            CreatedAt: new Date().toISOString(),
-            LastLogin: new Date().toISOString()
-          },
-          {
-            id: 'user_2',
-            Username: 'manager',
-            Email: 'manager@softcrowd.com',
-            RoleName: 'Admin',
-            RoleId: 'role_2',
-            IsActive: true,
-            isSuperAdmin: false,
-            permissions: [],
-            CreatedAt: new Date().toISOString(),
-            LastLogin: new Date().toISOString()
-          },
-          {
-            id: 'user_3',
-            Username: 'user',
-            Email: 'user@softcrowd.com',
-            RoleName: 'User',
-            RoleId: 'role_3',
-            IsActive: true,
-            isSuperAdmin: false,
-            permissions: [],
-            CreatedAt: new Date().toISOString(),
-            LastLogin: new Date().toISOString()
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/users/${userId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.data && response.data.success) {
+        const userData = response.data.data;
+        setExpandedUserPermissions(prev => ({
+          ...prev,
+          [userId]: {
+            user_permissions: userData.user_permissions || [],
+            role_name: userData.role?.name
           }
-        ];
-        setUsers(defaultUsers);
-        setFilteredUsers(defaultUsers);
-        localStorage.setItem('users', JSON.stringify(defaultUsers));
+        }));
+        console.log(`Fetched user_permissions for user ${userId}:`, userData.user_permissions);
       }
     } catch (error) {
-      console.error('Error loading users:', error);
-      showNotification('Failed to load users', 'error');
+      console.error(`Error fetching permissions for user ${userId}:`, error);
+      setExpandedUserPermissions(prev => ({
+        ...prev,
+        [userId]: {
+          user_permissions: [],
+          error: true
+        }
+      }));
     } finally {
-      setLoading(false);
+      setExpandedLoading(prev => ({ ...prev, [userId]: false }));
     }
   };
 
-  const loadRolesFromStorage = () => {
+  // Load users from API with pagination and search
+  const loadUsersFromAPI = useCallback(async () => {
+    if (!canView && !isSuperAdmin) return;
+    
+    setLoading(true);
     try {
-      const storedRoles = localStorage.getItem('roles');
-      if (storedRoles) {
-        const parsedRoles = JSON.parse(storedRoles);
-        setRoles(parsedRoles);
+      const token = localStorage.getItem('token');
+      const params = {
+        page: currentPage,
+        per_page: rowsPerPage,
+        search: searchTerm
+      };
+      
+      const response = await axios.get(`${BASE_URL}/users`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        params: params
+      });
+
+      if (response.data && response.data.success) {
+        const transformedUsers = response.data.data.map(user => ({
+          id: user.id,
+          name: user.name,
+          mobile: user.mobile,
+          email: user.email,
+          is_active: user.is_active,
+          role: user.role,
+          role_id: user.role?.id,
+          role_name: user.role?.name,
+          is_super_admin: user.role?.name === 'Super Admin',
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        }));
+        
+        setUsers(transformedUsers);
+        setTotalCount(response.data.meta?.total || 0);
+        setLastPage(response.data.meta?.last_page || 1);
+      } else {
+        setUsers([]);
+        setTotalCount(0);
+        setLastPage(1);
+      }
+    } catch (error) {
+      console.error('Error loading users:', error);
+      showNotification(error.response?.data?.message || 'Failed to load users', 'error');
+      setUsers([]);
+      setTotalCount(0);
+      setLastPage(1);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentPage, rowsPerPage, searchTerm, canView, isSuperAdmin]);
+
+  // Load roles from API
+  const loadRolesFromAPI = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${BASE_URL}/roles`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.data && response.data.success) {
+        const rolesList = response.data.data.map(role => ({
+          id: role.id,
+          name: role.name,
+          description: role.description,
+          is_super_admin: role.is_super_admin
+        }));
+        setRoles(rolesList);
       }
     } catch (error) {
       console.error('Error loading roles:', error);
     }
-  };
+  }, []);
 
-  const saveUsersToStorage = (updatedUsers) => {
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-  };
-
-  // Handle search
-  const handleSearch = () => {
-    if (!searchTerm) {
-      setFilteredUsers(users);
-      return;
+  // Load data when dependencies change
+  useEffect(() => {
+    if (permissionsLoaded && (canView || isSuperAdmin)) {
+      loadUsersFromAPI();
+      loadRolesFromAPI();
     }
-    
-    const value = searchTerm.toLowerCase();
-    const filtered = users.filter(user =>
-      user.Username?.toLowerCase().includes(value) ||
-      user.Email?.toLowerCase().includes(value) ||
-      user.RoleName?.toLowerCase().includes(value)
-    );
-    
-    setFilteredUsers(filtered);
-  };
+  }, [loadUsersFromAPI, loadRolesFromAPI, permissionsLoaded, canView, isSuperAdmin]);
 
   // Debounce search
-  React.useEffect(() => {
+  useEffect(() => {
     const timer = setTimeout(() => {
       setSearchTerm(searchInput);
+      setCurrentPage(1);
       setPage(0);
+      setExpandedRow(null);
+      setExpandedUserPermissions({});
     }, 500);
 
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Apply search when searchTerm or users change
-  React.useEffect(() => {
-    handleSearch();
-  }, [searchTerm, users]);
-
   // Handle page change
   const handleChangePage = (event, newPage) => {
     setPage(newPage);
+    setCurrentPage(newPage + 1);
     setExpandedRow(null);
+    setExpandedUserPermissions({});
   };
 
   // Handle rows per page change
   const handleChangeRowsPerPage = (event) => {
-    setRowsPerPage(parseInt(event.target.value, 10));
+    const newRowsPerPage = parseInt(event.target.value, 10);
+    setRowsPerPage(newRowsPerPage);
     setPage(0);
+    setCurrentPage(1);
     setExpandedRow(null);
+    setExpandedUserPermissions({});
+  };
+
+  // Handle expand row - fetch user_permissions when expanding
+  const handleExpandRow = (userId) => {
+    if (expandedRow === userId) {
+      setExpandedRow(null);
+    } else {
+      setExpandedRow(userId);
+      // Fetch user_permissions if not already fetched
+      if (!expandedUserPermissions[userId]) {
+        fetchUserPermissionsById(userId);
+      }
+    }
   };
 
   // Handle refresh
   const handleRefresh = () => {
-    loadUsersFromStorage();
-    loadRolesFromStorage();
+    loadUsersFromAPI();
+    loadRolesFromAPI();
+    setExpandedUserPermissions({});
+    setExpandedRow(null);
     showNotification('Data refreshed successfully', 'success');
   };
 
   // Handle add user
   const handleAddUser = (newUser) => {
-    const userWithId = {
-      ...newUser,
-      id: `user_${Date.now()}`,
-      CreatedAt: new Date().toISOString(),
-      LastLogin: null
-    };
-    const updatedUsers = [...users, userWithId];
-    setUsers(updatedUsers);
-    saveUsersToStorage(updatedUsers);
+    loadUsersFromAPI();
     showNotification('User added successfully!', 'success');
   };
 
   // Handle edit user
   const handleEditUser = (updatedUser) => {
-    const updatedUsers = users.map(user =>
-      user.id === updatedUser.id 
-        ? { ...updatedUser, UpdatedAt: new Date().toISOString() }
-        : user
-    );
-    setUsers(updatedUsers);
-    saveUsersToStorage(updatedUsers);
+    loadUsersFromAPI();
+    setExpandedUserPermissions({});
     showNotification('User updated successfully!', 'success');
   };
 
+  // Handle view user
+  const handleViewUser = (user) => {
+    setSelectedUserId(user.id);
+    setOpenViewModal(true);
+  };
+
+  // Handle edit user click
+  const handleEditUserClick = (user) => {
+    setSelectedUser(user);
+    setOpenEditModal(true);
+  };
+
   // Handle delete user
-  const handleDeleteUser = (userId) => {
-    const updatedUsers = users.filter(user => user.id !== userId);
-    setUsers(updatedUsers);
-    saveUsersToStorage(updatedUsers);
-    showNotification('User deleted successfully!', 'success');
+  const handleDeleteUser = async (userId) => {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem('token');
+      await axios.delete(`${BASE_URL}/users/${userId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      
+      loadUsersFromAPI();
+      setExpandedUserPermissions({});
+      showNotification('User deleted successfully!', 'success');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showNotification(error.response?.data?.message || 'Failed to delete user', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Show notification
@@ -573,27 +721,27 @@ const Users = () => {
     });
   };
 
-  const handleExpandRow = (userId) => {
-    setExpandedRow(expandedRow === userId ? null : userId);
-  };
-
   // Get role chip color
   const getRoleColor = (roleName) => {
     switch (roleName) {
       case 'Super Admin':
         return { bg: '#D1FAE5', color: '#10B981' };
-      case 'Admin':
+      case 'ADMIN':
         return { bg: '#E0F2FE', color: '#00AEED' };
       default:
         return { bg: '#F3F4F6', color: '#6B7280' };
     }
   };
 
-  // Paginated users
-  const paginatedUsers = filteredUsers.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
-  );
+  // Show loading state while permissions are being fetched
+  if (!permissionsLoaded) {
+    return <LoadingState />;
+  }
+
+  // If user doesn't have view permission, show access denied
+  if (!canView && !isSuperAdmin) {
+    return <AccessDenied />;
+  }
 
   return (
     <Box>
@@ -626,10 +774,9 @@ const Users = () => {
         border: `1px solid ${COLORS.border}`
       }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems="center" justifyContent="space-between">
-          {/* Search */}
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
             <TextField
-              placeholder="Search by username or email..."
+              placeholder="Search by name, email or mobile..."
               size="small"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -666,12 +813,12 @@ const Users = () => {
             />
           </Stack>
 
-          {/* Action Buttons */}
           <Stack direction="row" spacing={1.5} alignItems="center">
-            <Button
+            {/* <Button
               variant="outlined"
               startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
               onClick={handleRefresh}
+              disabled={loading}
               sx={{ 
                 height: 36,
                 borderRadius: 1.5,
@@ -688,27 +835,30 @@ const Users = () => {
               }}
             >
               Refresh
-            </Button>
+            </Button> */}
 
-            <Button
-              variant="contained"
-              startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
-              onClick={() => setOpenAddModal(true)}
-              sx={{
-                height: 36,
-                borderRadius: 1.5,
-                bgcolor: COLORS.primary,
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                textTransform: 'none',
-                boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-                '&:hover': {
-                  bgcolor: COLORS.primaryDark,
-                }
-              }}
-            >
-              Add User
-            </Button>
+            {canCreate && (
+              <Button
+                variant="contained"
+                startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
+                onClick={() => setOpenAddModal(true)}
+                disabled={loading}
+                sx={{
+                  height: 36,
+                  borderRadius: 1.5,
+                  bgcolor: COLORS.primary,
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  textTransform: 'none',
+                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                  '&:hover': {
+                    bgcolor: COLORS.primaryDark,
+                  }
+                }}
+              >
+                Add User
+              </Button>
+            )}
           </Stack>
         </Stack>
       </Paper>
@@ -755,6 +905,14 @@ const Users = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
+                  Mobile
+                </TableCell>
+                <TableCell sx={{ 
+                  fontWeight: 600, 
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.5px',
+                  color: COLORS.text.light
+                }}>
                   Role
                 </TableCell>
                 <TableCell sx={{ 
@@ -787,16 +945,16 @@ const Users = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
                       Loading users...
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : paginatedUsers.length === 0 ? (
+              ) : users.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={7} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={8} align="center" sx={{ py: 6 }}>
                     <Box sx={{ textAlign: 'center' }}>
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
                         {searchTerm ? 'No users found' : 'No users available'}
@@ -808,10 +966,13 @@ const Users = () => {
                   </TableCell>
                 </TableRow>
               ) : (
-                paginatedUsers.map((user) => {
-                  const avatarColor = getAvatarColor(user.Username);
-                  const roleColor = getRoleColor(user.RoleName);
+                users.map((user) => {
+                  const avatarColor = getAvatarColor(user.name);
+                  const roleColor = getRoleColor(user.role_name);
                   const isExpanded = expandedRow === user.id;
+                  const userPermData = expandedUserPermissions[user.id];
+                  const isLoadingExpanded = expandedLoading[user.id];
+                  const isSuperAdminUser = user.role_name === 'Super Admin';
 
                   return (
                     <React.Fragment key={user.id}>
@@ -854,13 +1015,13 @@ const Users = () => {
                                 fontWeight: 600
                               }}
                             >
-                              {getUserInitials(user.Username)}
+                              {getUserInitials(user.name)}
                             </Avatar>
                             <Box>
                               <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary }}>
-                                {user.Username}
+                                {user.name}
                               </Typography>
-                              {user.isSuperAdmin && (
+                              {isSuperAdminUser && (
                                 <Chip
                                   label="Super Admin"
                                   size="small"
@@ -878,12 +1039,17 @@ const Users = () => {
                         </TableCell>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                            {user.Email}
+                            {user.email || '-'}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
+                            {user.mobile || '-'}
                           </Typography>
                         </TableCell>
                         <TableCell>
                           <Chip
-                            label={user.RoleName}
+                            label={user.role_name || '-'}
                             size="small"
                             sx={{
                               bgcolor: roleColor.bg,
@@ -895,32 +1061,62 @@ const Users = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          <StatusChip isActive={user.IsActive} />
+                          <StatusChip isActive={user.is_active} />
                         </TableCell>
                         <TableCell>
                           <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                            {formatDate(user.CreatedAt)}
+                            {formatDate(user.created_at)}
                           </Typography>
                         </TableCell>
                         <TableCell align="center" sx={{ width: 60 }}>
                           <ActionMenu 
                             user={user}
-                            onView={(u) => { setSelectedUser(u); setOpenViewModal(true); }}
-                            onEdit={(u) => { setSelectedUser(u); setOpenEditModal(true); }}
+                            onView={handleViewUser}
+                            onEdit={handleEditUserClick}
                             onDelete={(u) => { setSelectedUser(u); setOpenDeleteDialog(true); }}
+                            canView={canView}
+                            canUpdate={canUpdate}
+                            canDelete={canDelete}
                           />
                         </TableCell>
                       </TableRow>
                       
-                      {/* Expanded Row with Permissions Matrix */}
+                      {/* Expanded Row with user_permissions - Shows ALL pages */}
                       <TableRow>
-                        <TableCell colSpan={7} sx={{ p: 0 }}>
+                        <TableCell colSpan={8} sx={{ p: 0 }}>
                           <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                             <Box sx={{ p: 2, bgcolor: COLORS.background.light, borderTop: `1px solid ${COLORS.border}` }}>
                               <Typography variant="subtitle2" sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary, mb: 2 }}>
                                 User Permissions Matrix
+                                {isSuperAdminUser && (
+                                  <Chip
+                                    label="Full Access"
+                                    size="small"
+                                    sx={{ ml: 1, bgcolor: '#D1FAE5', color: '#10B981', fontSize: '0.6rem', height: 20 }}
+                                  />
+                                )}
                               </Typography>
-                              <PermissionsMatrix permissions={user.permissions || []} />
+                              {isSuperAdminUser ? (
+                                <Box sx={{ 
+                                  textAlign: 'center', 
+                                  py: 4, 
+                                  bgcolor: COLORS.background.white,
+                                  borderRadius: 1,
+                                  border: `1px solid ${COLORS.border}`
+                                }}>
+                                  <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, color: COLORS.primary, mb: 1 }}>
+                                    👑 Super Admin Access
+                                  </Typography>
+                                  <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
+                                    Super Admin has full access to all modules and permissions
+                                  </Typography>
+                                </Box>
+                              ) : (
+                                <PermissionsMatrix 
+                                  userPermissions={userPermData?.user_permissions || []}
+                                  loading={isLoadingExpanded}
+                                />
+                              )}
                             </Box>
                           </Collapse>
                         </TableCell>
@@ -937,7 +1133,7 @@ const Users = () => {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25, 50]}
           component="div"
-          count={filteredUsers.length}
+          count={totalCount}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}
@@ -959,49 +1155,55 @@ const Users = () => {
       </Paper>
 
       {/* Modal Components */}
-      <AddUser 
-        open={openAddModal}
-        onClose={() => setOpenAddModal(false)}
-        onAdd={handleAddUser}
-        roles={roles}
+      {canCreate && (
+        <AddUser 
+          open={openAddModal}
+          onClose={() => setOpenAddModal(false)}
+          onAdd={handleAddUser}
+          roles={roles}
+        />
+      )}
+
+      {canUpdate && selectedUser && (
+        <EditUser 
+          open={openEditModal}
+          onClose={() => {
+            setOpenEditModal(false);
+            setSelectedUser(null);
+          }}
+          user={selectedUser}
+          onUpdate={handleEditUser}
+          roles={roles}
+        />
+      )}
+
+      <ViewUser 
+        open={openViewModal}
+        onClose={() => {
+          setOpenViewModal(false);
+          setSelectedUserId(null);
+        }}
+        userId={selectedUserId}
+        onEdit={() => {
+          setOpenViewModal(false);
+          const userToEdit = users.find(u => u.id === selectedUserId);
+          if (userToEdit) {
+            setSelectedUser(userToEdit);
+            setOpenEditModal(true);
+          }
+        }}
       />
 
-      {selectedUser && (
-        <>
-          <EditUser 
-            open={openEditModal}
-            onClose={() => {
-              setOpenEditModal(false);
-              setSelectedUser(null);
-            }}
-            user={selectedUser}
-            onUpdate={handleEditUser}
-            roles={roles}
-          />
-
-          <ViewUser 
-            open={openViewModal}
-            onClose={() => {
-              setOpenViewModal(false);
-              setSelectedUser(null);
-            }}
-            user={selectedUser}
-            onEdit={() => {
-              setOpenViewModal(false);
-              setOpenEditModal(true);
-            }}
-          />
-
-          <DeleteUser 
-            open={openDeleteDialog}
-            onClose={() => {
-              setOpenDeleteDialog(false);
-              setSelectedUser(null);
-            }}
-            user={selectedUser}
-            onDelete={handleDeleteUser}
-          />
-        </>
+      {canDelete && selectedUser && (
+        <DeleteUser 
+          open={openDeleteDialog}
+          onClose={() => {
+            setOpenDeleteDialog(false);
+            setSelectedUser(null);
+          }}
+          user={selectedUser}
+          onDelete={handleDeleteUser}
+        />
       )}
 
       {/* Snackbar Notification */}

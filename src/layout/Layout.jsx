@@ -6,7 +6,6 @@ import { Outlet } from "react-router-dom";
 const Layout = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Lock body scroll when mobile sidebar is open
   useEffect(() => {
     if (isMobileSidebarOpen) {
       document.body.style.overflow = 'hidden';
@@ -17,7 +16,6 @@ const Layout = () => {
       document.body.style.position = '';
       document.body.style.width = '';
     }
-
     return () => {
       document.body.style.overflow = '';
       document.body.style.position = '';
@@ -28,23 +26,21 @@ const Layout = () => {
   return (
     <div style={{ background: '#F8FAFC' }}>
       <Header onMenuClick={() => setIsMobileSidebarOpen(true)} />
-      
+
       {/* Desktop Sidebar */}
       <Sidebar />
-      
+
       {/* Mobile Sidebar Drawer */}
-      <Sidebar 
-        isMobileOpen={isMobileSidebarOpen} 
-        onClose={() => setIsMobileSidebarOpen(false)} 
+      <Sidebar
+        isMobileOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
       />
-      
-      {/* Main Content - Disabled when mobile sidebar is open */}
-      <main 
-        className={`lg:ml-72 mt-16 p-4 sm:p-6 lg:p-8 transition-all duration-300 ${
-          isMobileSidebarOpen ? 'pointer-events-none opacity-50' : 'pointer-events-auto opacity-100'
-        }`}
-        style={{ 
-          overflowY: isMobileSidebarOpen ? 'hidden' : 'auto',
+
+      {/* Main Content */}
+      <main
+        className="lg:ml-72 mt-16 p-4 sm:p-6 lg:p-8 transition-all duration-300"
+        style={{
+          overflowY: 'auto',
           maxHeight: 'calc(100vh - 64px)',
           overflowX: 'hidden'
         }}
@@ -53,14 +49,6 @@ const Layout = () => {
           <Outlet />
         </div>
       </main>
-
-      {/* Overlay for mobile when sidebar is open */}
-      {isMobileSidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setIsMobileSidebarOpen(false)}
-        />
-      )}
     </div>
   );
 };

@@ -1,37 +1,36 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Dialog,
+  DialogTitle,
   DialogContent,
-  Box,
-  Typography,
+  DialogActions,
   Button,
+  Typography,
+  Box,
   Stack,
   Chip,
-  Paper,
-  Grid,
-  Avatar,
-  styled
+  Divider
 } from '@mui/material';
 import {
+  Business as BusinessIcon,
+  LocationOn as LocationIcon,
+  Email as EmailIcon,
+  Phone as PhoneIcon,
   Edit as EditIcon,
-  Business,
-  LocationOn,
-  Email,
-  Phone,
   Close as CloseIcon,
-  NavigateNext as NavigateNextIcon,
-  NavigateBefore as NavigateBeforeIcon
+  PinDrop as PinDropIcon,
+  CalendarToday as CalendarIcon
 } from '@mui/icons-material';
 
 // Color constants
 const COLORS = {
   primary: '#0F172A',
+  primaryDark: '#0A0F1E',
   accent: '#00AEED',
   text: {
     primary: '#1E293B',
     secondary: '#64748B',
-    tertiary: '#94A3B8',
-    light: '#FFFFFF'
+    tertiary: '#94A3B8'
   },
   background: {
     white: '#FFFFFF',
@@ -41,281 +40,306 @@ const COLORS = {
 };
 
 const ViewCollege = ({ open, onClose, college, onEdit }) => {
-  const [activeStep, setActiveStep] = useState(0);
-
   if (!college) return null;
 
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
+  // Get college initials for ID chip
   const getCollegeInitials = (name) => {
-    if (!name) return 'C';
+    if (!name) return 'CLG';
     const words = name.split(' ');
     if (words.length >= 2) {
       return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    return name.substring(0, 3).toUpperCase();
   };
 
-  // Helper function to get contact number from either field name
+  // Helper function to get contact number
   const getContactNumber = () => {
-    return college.contact || college.contact_number || '-';
-  };
-
-  const renderField = (icon, label, value) => (
-    <Stack direction="row" spacing={1} alignItems="flex-start">
-      <Box sx={{ color: COLORS.accent, mt: 0.3, minWidth: 20 }}>
-        {icon}
-      </Box>
-      <Box>
-        <Typography 
-          variant="caption" 
-          sx={{ 
-            color: COLORS.text.secondary, 
-            display: 'block', 
-            fontSize: '10px',
-            fontWeight: 500,
-            mb: 0.2,
-            letterSpacing: '0.5px'
-          }}
-        >
-          {label}
-        </Typography>
-        <Typography 
-          variant="body2" 
-          sx={{ 
-            fontWeight: 600, 
-            fontSize: '13px',
-            color: COLORS.text.primary,
-            wordBreak: 'break-word'
-          }}
-        >
-          {value || '-'}
-        </Typography>
-      </Box>
-    </Stack>
-  );
-
-  const renderStepContent = (step) => {
-    switch (step) {
-      case 0:
-        return (
-          <Stack spacing={1.5}>
-            {/* College Profile */}
-            <Paper sx={{ p: 2, backgroundColor: COLORS.background.white, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
-              <Stack direction="row" spacing={3} alignItems="center" sx={{ mb: 2 }}>
-                <Avatar 
-                  sx={{ 
-                    width: 80, 
-                    height: 80, 
-                    bgcolor: COLORS.accent,
-                    fontSize: '2rem',
-                    fontWeight: 600
-                  }}
-                >
-                  {getCollegeInitials(college.name)}
-                </Avatar>
-                <Box>
-                  <Typography variant="h6" fontWeight={600} color={COLORS.text.primary} sx={{ fontSize: '1.1rem' }}>
-                    {college.name}
-                  </Typography>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-                    <Typography variant="body2" color={COLORS.text.secondary} sx={{ fontSize: '12px' }}>
-                      {college.city}, {college.state}
-                    </Typography>
-                  </Stack>
-                </Box>
-              </Stack>
-
-              <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1.5, fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.5px' }}>
-                Basic Information
-              </Typography>
-              
-              <Grid container spacing={1.5}>
-                <Grid size={{ xs: 12 }}>
-                  {renderField(<LocationOn sx={{ fontSize: 16 }} />, 'Address', college.address)}
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  {renderField(<Business sx={{ fontSize: 16 }} />, 'City', college.city)}
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  {renderField(<Business sx={{ fontSize: 16 }} />, 'State', college.state)}
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  {renderField(<Business sx={{ fontSize: 16 }} />, 'Pincode', college.pincode)}
-                </Grid>
-              </Grid>
-            </Paper>
-
-            {/* Contact Information */}
-            <Paper sx={{ p: 1.5, backgroundColor: COLORS.background.white, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
-              <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1, fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.5px' }}>
-                Contact Information
-              </Typography>
-              
-              <Grid container spacing={1.5}>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  {renderField(<Phone sx={{ fontSize: 16 }} />, 'Contact Number', getContactNumber())}
-                </Grid>
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  {renderField(<Email sx={{ fontSize: 16 }} />, 'Email', college.email || 'Not provided')}
-                </Grid>
-              </Grid>
-            </Paper>
-
-            {/* Metadata Information */}
-            {college.createdAt && (
-              <Paper sx={{ p: 1.5, backgroundColor: COLORS.background.white, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
-                <Typography variant="subtitle2" sx={{ color: COLORS.accent, mb: 1, fontWeight: 600, fontSize: '0.8rem', letterSpacing: '0.5px' }}>
-                  Additional Information
-                </Typography>
-                
-                <Grid container spacing={1.5}>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" sx={{ color: COLORS.text.secondary, fontSize: '10px', fontWeight: 500, display: 'block', mb: 0.2 }}>
-                      CREATED AT
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '12px', color: COLORS.text.primary }}>
-                      {new Date(college.createdAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </Typography>
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 6 }}>
-                    <Typography variant="caption" sx={{ color: COLORS.text.secondary, fontSize: '10px', fontWeight: 500, display: 'block', mb: 0.2 }}>
-                      LAST UPDATED
-                    </Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 500, fontSize: '12px', color: COLORS.text.primary }}>
-                      {new Date(college.updatedAt).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
-                    </Typography>
-                  </Grid>
-                </Grid>
-              </Paper>
-            )}
-          </Stack>
-        );
-
-      default:
-        return null;
-    }
+    return college.contact_number || college.contact || '-';
   };
 
   return (
     <Dialog
       open={open}
       onClose={onClose}
-      maxWidth="md"
+      maxWidth="sm"
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 2,
-          overflow: 'hidden',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.1)',
+          borderRadius: 5,
+          boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
           border: `1px solid ${COLORS.border}`,
-          maxHeight: '90vh'
+          overflow: 'hidden'
         }
       }}
     >
-      {/* Header */}
-      <Box sx={{ 
-        background: COLORS.primary,
+      <DialogTitle sx={{
+        borderBottom: `1px solid ${COLORS.border}`,
         py: 1.5,
-        px: 2.5
+        px: 2.5,
+        mb: 2,
+        bgcolor: COLORS.background.white,
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
       }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Stack direction="row" alignItems="center" spacing={1}>
-            <Business sx={{ color: COLORS.text.light, fontSize: 18 }} />
-            <Typography variant="subtitle2" sx={{ 
-              fontWeight: 600, 
-              color: COLORS.text.light,
-              fontSize: '0.9rem',
-              letterSpacing: '0.5px'
-            }}>
-              College Details
-            </Typography>
-          </Stack>
-          <Chip
-            label={`ID: ${college.id}`}
-            size="small"
-            sx={{
-              bgcolor: 'rgba(255,255,255,0.15)',
-              color: COLORS.text.light,
-              fontWeight: 500,
-              fontSize: '10px',
-              height: '22px',
-              '& .MuiChip-label': {
-                px: 1.5
-              }
-            }}
-          />
-        </Stack>
-      </Box>
+        <Typography
+          sx={{
+            fontSize: '1.2rem',
+            fontWeight: 700,
+            color: COLORS.text.primary
+          }}
+        >
+          College Details
+        </Typography>
+        <Chip
+          label={`ID: ${college?.id || 'N/A'}`}
+          size="small"
+          sx={{
+            height: 24,
+            fontSize: '0.65rem',
+            fontWeight: 500,
+            bgcolor: COLORS.background.light,
+            color: COLORS.text.secondary
+          }}
+        />
+      </DialogTitle>
 
-      <DialogContent sx={{ 
-        p: 2.5, 
-        overflow: 'auto', 
-        maxHeight: 'calc(90vh - 120px)',
-        bgcolor: COLORS.background.light,
-        '&:last-child': {
-          pb: 2.5
-        }
-      }}>
-        {renderStepContent(activeStep)}
+      <DialogContent sx={{ p: 2.5 }}>
+        <Stack spacing={2.5}>
+          {/* College Name */}
+          <Box>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
+              <BusinessIcon sx={{ fontSize: '1.25rem', color: COLORS.accent }} />
+              <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                COLLEGE NAME
+              </Typography>
+            </Stack>
+            <Typography sx={{ 
+              fontSize: '0.875rem', 
+              fontWeight: 600, 
+              color: COLORS.text.primary,
+              ml: 3.5
+            }}>
+              {college?.name || 'N/A'}
+            </Typography>
+          </Box>
+
+          <Divider sx={{ borderColor: COLORS.border }} />
+
+          {/* Address */}
+          <Box>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
+              <LocationIcon sx={{ fontSize: '1.25rem', color: COLORS.accent }} />
+              <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                ADDRESS
+              </Typography>
+            </Stack>
+            <Typography sx={{ 
+              fontSize: '0.75rem', 
+              color: COLORS.text.secondary,
+              ml: 3.5,
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap'
+            }}>
+              {college?.address || 'No address provided'}
+            </Typography>
+          </Box>
+
+          <Divider sx={{ borderColor: COLORS.border }} />
+
+          {/* Location Details (City, State, Pincode) */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <PinDropIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  CITY
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {college?.city || 'N/A'}
+              </Typography>
+            </Box>
+
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <LocationIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  STATE
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {college?.state || 'N/A'}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <PinDropIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  PINCODE
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {college?.pincode || 'N/A'}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Divider sx={{ borderColor: COLORS.border }} />
+
+          {/* Contact Information */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <PhoneIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  CONTACT NUMBER
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {getContactNumber()}
+              </Typography>
+            </Box>
+
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <EmailIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  EMAIL
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {college?.email || 'Not provided'}
+              </Typography>
+            </Box>
+          </Stack>
+
+          <Divider sx={{ borderColor: COLORS.border }} />
+
+          {/* Metadata Information */}
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <CalendarIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  CREATED AT
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {formatDate(college?.created_at)}
+              </Typography>
+            </Box>
+
+            <Box sx={{ flex: 1 }}>
+              <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                <CalendarIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                  LAST UPDATED
+                </Typography>
+              </Stack>
+              <Typography sx={{ 
+                fontSize: '0.7rem', 
+                color: COLORS.text.secondary,
+                ml: 3.5
+              }}>
+                {formatDate(college?.updated_at)}
+              </Typography>
+            </Box>
+          </Stack>
+
+          {/* User ID (if available) */}
+          {college?.user_id && (
+            <>
+              <Divider sx={{ borderColor: COLORS.border }} />
+              <Box>
+                <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 0.5 }}>
+                  <BusinessIcon sx={{ fontSize: '1rem', color: COLORS.text.tertiary }} />
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 600, color: COLORS.text.tertiary, letterSpacing: '0.5px' }}>
+                    USER ID
+                  </Typography>
+                </Stack>
+                <Typography sx={{ 
+                  fontSize: '0.7rem', 
+                  color: COLORS.text.secondary,
+                  ml: 3.5
+                }}>
+                  {college?.user_id}
+                </Typography>
+              </Box>
+            </>
+          )}
+        </Stack>
       </DialogContent>
 
-      {/* Footer Actions */}
-      <Box sx={{
+      <DialogActions sx={{
         px: 2.5,
         py: 1.5,
         borderTop: `1px solid ${COLORS.border}`,
-        backgroundColor: COLORS.background.white
+        bgcolor: COLORS.background.white,
+        display: 'flex',
+        justifyContent: 'space-between',
+        gap: 1
       }}>
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Button
-            onClick={onClose}
-            startIcon={<CloseIcon sx={{ fontSize: '1rem' }} />}
-            size="small"
-            sx={{ 
-              color: COLORS.text.secondary, 
-              fontSize: '0.75rem',
-              textTransform: 'none',
-              fontWeight: 500,
-              '&:hover': {
-                bgcolor: `${COLORS.accent}10`
-              }
-            }}
-          >
-            Close
-          </Button>
+        <Button
+          onClick={onClose}
+          sx={{
+            height: 32,
+            px: 2,
+            borderRadius: 1.5,
+            border: `1px solid ${COLORS.border}`,
+            color: COLORS.text.secondary,
+            fontSize: '0.7rem',
+            fontWeight: 500,
+            textTransform: 'none',
+            '&:hover': {
+              borderColor: COLORS.primary,
+              bgcolor: `${COLORS.primary}10`
+            }
+          }}
+        >
+          Close
+        </Button>
 
-          <Stack direction="row" spacing={1}>
-            <Button
-              variant="contained"
-              onClick={() => {
-                onClose();
-                if (onEdit) onEdit(college);
-              }}
-              size="small"
-              startIcon={<EditIcon sx={{ fontSize: '1rem' }} />}
-              sx={{
-                backgroundColor: COLORS.accent,
-                fontSize: '0.75rem',
-                textTransform: 'none',
-                fontWeight: 500,
-                px: 2,
-                '&:hover': { 
-                  backgroundColor: COLORS.primary 
-                }
-              }}
-            >
-              Edit College
-            </Button>
-          </Stack>
-        </Stack>
-      </Box>
+       
+      </DialogActions>
     </Dialog>
   );
 };

@@ -1,4 +1,10 @@
-const BASE_URL = "http://192.168.1.21:8000/api";
+// const BASE_URL = "http://192.168.1.21:8000/api";
+
+// const BASE_URL = "http://192.168.1.13:8000/api";
+
+// const BASE_URL = "http://192.168.1.40:8000/api";
+
+const BASE_URL = "https://exilance.com/softcrowd-itr-attendance-management/backend/public/api"
 
 // const BASE_URL = "https://sly-crazily-acuteness.ngrok-free.dev/api"
 
