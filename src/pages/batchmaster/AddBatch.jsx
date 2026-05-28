@@ -1031,79 +1031,80 @@ const AddBatch = ({ open, onClose, onAdd, existingBatches = [] }) => {
     return isValid;
   };
 
-  const handleSubmit = async () => {
-    if (!validateAllFields()) {
-      setError('Please fix all validation errors');
-      return;
+ const handleSubmit = async () => {
+  if (!validateAllFields()) {
+    setError('Please fix all validation errors');
+    return;
+  }
+
+  setLoading(true);
+  setError('');
+
+  try {
+    const token = localStorage.getItem('token');
+    const payload = {
+      name: formData.name.trim(),
+      domain_id: formData.domain_id,
+      start_date: formData.start_date.format('YYYY-MM-DD'),
+      end_date: formData.end_date.format('YYYY-MM-DD'),
+      start_time: formData.start_time.format('HH:mm:ss'), // Changed to include seconds
+      end_time: formData.end_time.format('HH:mm:ss'),     // Changed to include seconds
+      strength: parseInt(formData.strength),
+      trainer_name: formData.trainer_name.trim(),
+      user_id: selectedTrainer ? selectedTrainer.id : null, // Add user_id from selected trainer
+    };
+
+    if (formData.latitude && formData.latitude.trim() !== '') {
+      payload.latitude = parseFloat(formData.latitude);
+    }
+    if (formData.longitude && formData.longitude.trim() !== '') {
+      payload.longitude = parseFloat(formData.longitude);
+    }
+    if (formData.radius && formData.radius.trim() !== '') {
+      payload.radius = parseInt(formData.radius);
     }
 
-    setLoading(true);
-    setError('');
-
-    try {
-      const token = localStorage.getItem('token');
-      const payload = {
-        name: formData.name.trim(),
-        domain_id: formData.domain_id,
-        start_date: formData.start_date.format('YYYY-MM-DD'),
-        end_date: formData.end_date.format('YYYY-MM-DD'),
-        start_time: formData.start_time.format('HH:mm'),
-        end_time: formData.end_time.format('HH:mm'),
-        strength: parseInt(formData.strength),
-        trainer_name: formData.trainer_name.trim()
-      };
-
-      if (formData.latitude && formData.latitude.trim() !== '') {
-        payload.latitude = parseFloat(formData.latitude);
+    const response = await axios.post(`${BASE_URL}/batches`, payload, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-      if (formData.longitude && formData.longitude.trim() !== '') {
-        payload.longitude = parseFloat(formData.longitude);
-      }
-      if (formData.radius && formData.radius.trim() !== '') {
-        payload.radius = parseInt(formData.radius);
-      }
+    });
 
-      const response = await axios.post(`${BASE_URL}/batches`, payload, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+    if (response.data && response.data.data) {
+      onAdd(response.data.data);
+      resetForm();
+      onClose();
+    } else {
+      throw new Error('Invalid response from server');
+    }
+  } catch (err) {
+    console.error('Error adding batch:', err);
+    
+    // Extract error message - prioritize 'error' field over 'message'
+    let errorMessage = '';
+    if (err.response?.data?.error) {
+      errorMessage = err.response.data.error;
+    } else if (err.response?.data?.message) {
+      errorMessage = err.response.data.message;
+    } else {
+      errorMessage = 'Failed to add batch. Please try again.';
+    }
+    
+    setError(errorMessage);
+    
+    if (err.response?.data?.errors) {
+      const backendErrors = err.response.data.errors;
+      const newFieldErrors = {};
+      Object.keys(backendErrors).forEach(key => {
+        newFieldErrors[key] = backendErrors[key][0];
       });
-
-      if (response.data && response.data.data) {
-        onAdd(response.data.data);
-        resetForm();
-        onClose();
-      } else {
-        throw new Error('Invalid response from server');
-      }
-    } catch (err) {
-      console.error('Error adding batch:', err);
-      
-      // Extract error message - prioritize 'error' field over 'message'
-      let errorMessage = '';
-      if (err.response?.data?.error) {
-        errorMessage = err.response.data.error;
-      } else if (err.response?.data?.message) {
-        errorMessage = err.response.data.message;
-      } else {
-        errorMessage = 'Failed to add batch. Please try again.';
-      }
-      
-      setError(errorMessage);
-      
-      if (err.response?.data?.errors) {
-        const backendErrors = err.response.data.errors;
-        const newFieldErrors = {};
-        Object.keys(backendErrors).forEach(key => {
-          newFieldErrors[key] = backendErrors[key][0];
-        });
-        setFieldErrors(newFieldErrors);
-      }
-    } finally {
-      setLoading(false);
+      setFieldErrors(newFieldErrors);
     }
-  };
+  } finally {
+    setLoading(false);
+  }
+};
 
   const resetForm = () => {
     setFormData({

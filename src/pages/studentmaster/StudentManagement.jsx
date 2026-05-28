@@ -2004,60 +2004,65 @@ const AssignBatchDialog = ({ open, onClose, student, batches, onAssign }) => {
   };
 
   const handleAssign = async () => {
-    if (!selectedBatch) {
-      setError('Please select a batch');
-      return;
-    }
+  if (!selectedBatch) {
+    setError('Please select a batch');
+    return;
+  }
 
-    if (!startDate) {
-      setError('Please select start date');
-      return;
-    }
+  if (!startDate) {
+    setError('Please select start date');
+    return;
+  }
 
-    if (assignedBatches.some(b => b.id === selectedBatch.id)) {
-      setError('This batch is already assigned to the student');
-      return;
-    }
+  if (assignedBatches.some(b => b.id === selectedBatch.id)) {
+    setError('This batch is already assigned to the student');
+    return;
+  }
 
-    setLoading(true);
-    setError('');
-    setSuccess('');
+  setLoading(true);
+  setError('');
+  setSuccess('');
 
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${BASE_URL}/assign-batch`, {
-        student_id: student.id,
-        batch_id: selectedBatch.id,
-        start_date: startDate
-      }, {
+  try {
+    const token = localStorage.getItem('token');
+    const response = await axios.post(`${BASE_URL}/assign-batch`, {
+      student_id: student.id,
+      batch_id: selectedBatch.id,
+      start_date: startDate
+    }, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+
+    if (response.data && response.data.message) {
+      // Fetch updated student data
+      const studentResponse = await axios.get(`${BASE_URL}/students/${student.id}`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
-
-      if (response.data && response.data.message) {
-        // Fetch updated student data
-        const studentResponse = await axios.get(`${BASE_URL}/students/${student.id}`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+      
+      if (studentResponse.data && studentResponse.data.data) {
+        const updatedBatches = studentResponse.data.data.batches || [];
+        setAssignedBatches(updatedBatches);
+        onAssign(student.id, updatedBatches);
+        showNotification('Batch assigned successfully!', 'success');
+        setSelectedBatch(null);
+        setStartDate(new Date().toISOString().split('T')[0]);
         
-        if (studentResponse.data && studentResponse.data.data) {
-          const updatedBatches = studentResponse.data.data.batches || [];
-          setAssignedBatches(updatedBatches);
-          onAssign(student.id, updatedBatches);
-          showNotification('Batch assigned successfully!', 'success');
-          setSelectedBatch(null);
-          setStartDate(new Date().toISOString().split('T')[0]);
-        }
-      } else {
-        throw new Error('Invalid response from server');
+        // Close the modal after successful assignment
+        setTimeout(() => {
+          onClose(); // This will close the modal
+        }, 1500); // Give time to see the success message
       }
-    } catch (err) {
-      console.error('Error assigning batch:', err);
-      const errorMessage = err.response?.data?.message || 'Failed to assign batch. Please try again.';
-      showNotification(errorMessage, 'error');
-    } finally {
-      setLoading(false);
+    } else {
+      throw new Error('Invalid response from server');
     }
-  };
+  } catch (err) {
+    console.error('Error assigning batch:', err);
+    const errorMessage = err.response?.data?.message || 'Failed to assign batch. Please try again.';
+    showNotification(errorMessage, 'error');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleRemoveBatch = async (batchId) => {
     setLoading(true);

@@ -1551,24 +1551,13 @@ const BatchManagement = () => {
     showNotification('Batch updated successfully!', 'success');
   };
 
-  // Handle delete batch
-  const handleDeleteBatch = async (batchId) => {
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${BASE_URL}/batches/${batchId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      loadBatchesFromAPI();
-      showNotification('Batch deleted successfully!', 'success');
-    } catch (error) {
-      console.error('Error deleting batch:', error);
-      showNotification('Failed to delete batch', 'error');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Replace the existing handleDeleteBatch function with this:
+const handleDeleteBatch = async (batchId) => {
+  // Don't make API call here - DeleteBatch component already did it
+  // Just refresh the list and show notification
+  loadBatchesFromAPI();
+  showNotification('Batch deleted successfully!', 'success');
+};
 
   // Handle toggle pause/resume
   const handleTogglePause = (batchId, newPauseStatus) => {
