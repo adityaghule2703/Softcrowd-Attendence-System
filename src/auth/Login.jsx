@@ -134,7 +134,7 @@ const Login = () => {
                     <Sparkles className="w-7 h-7 text-white relative z-10 animate-pulse" />
                   </div>
                   <img 
-                    src="src/assets/images/softcrowd-logo.png" 
+                    src="./softcrowd-logo.png" 
                     className="h-12 w-auto" 
                     alt="SoftCrowd" 
                   />
@@ -278,7 +278,7 @@ const Login = () => {
             <div className="text-center mb-4">
               <div className="flex items-center justify-center mb-2">
                 <img 
-                  src="src/assets/images/softcrowd-logo.png" 
+                  src="./softcrowd-logo.png" 
                   className="h-10 w-auto" 
                   alt="SoftCrowd" 
                 />

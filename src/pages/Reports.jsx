@@ -129,8 +129,9 @@ const globalCSS = `
   .rpt-grid { display: grid; gap: 14px; }
   .rpt-grid-2 { grid-template-columns: repeat(2, 1fr); }
   .rpt-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .rpt-grid-4 { grid-template-columns: repeat(4, 1fr); }
   @media (max-width: 640px) {
-    .rpt-grid-2, .rpt-grid-3 { grid-template-columns: 1fr; }
+    .rpt-grid-2, .rpt-grid-3, .rpt-grid-4 { grid-template-columns: 1fr; }
   }
 
   /* ── Divider ── */
@@ -323,20 +324,41 @@ const Reports = () => {
   const [exportYear, setExportYear] = useState(dayjs().year());
   const [exportBatchId, setExportBatchId] = useState('');
   const [exportTrainerName, setExportTrainerName] = useState('');
+  const [exportCollegeId, setExportCollegeId] = useState('');
+  const [exportCompanyName, setExportCompanyName] = useState('');
+  const [exportDomainName, setExportDomainName] = useState('');
+  const [exportStudentName, setExportStudentName] = useState('');
   const [availableBatches, setAvailableBatches] = useState([]);
   const [trainers, setTrainers] = useState([]);
+  const [colleges, setColleges] = useState([]);
+  const [domains, setDomains] = useState([]);
+  const [students, setStudents] = useState([]);
   const [exporting, setExporting] = useState(false);
   const [toast, setToast] = useState({ open: false, type: 'success', message: '' });
   const [loadingTrainers, setLoadingTrainers] = useState(false);
+  const [loadingColleges, setLoadingColleges] = useState(false);
+  const [loadingDomains, setLoadingDomains] = useState(false);
+  const [loadingStudents, setLoadingStudents] = useState(false);
 
   const [userPermissions, setUserPermissions] = useState([]);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [userRole, setUserRole] = useState('');
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  // Hardcoded company list as per requirement
+ const companyOptions = [
+  "Exilance Software",
+  "Softcrowd Technologies",
+  "Codiant Solutions"
+];
 
   useEffect(() => {
     fetchUserPermissions();
     loadBatches();
     loadTrainers();
+    loadColleges();
+    loadDomains();
+    loadStudents();
   }, []);
 
   const fetchUserPermissions = async () => {
@@ -346,6 +368,7 @@ const Reports = () => {
       if (res.data.success) {
         setIsSuperAdmin(res.data.data.is_super_admin || false);
         setUserPermissions(res.data.data.permissions || []);
+        setUserRole(res.data.data.role || '');
       }
     } catch (err) {
       console.error('Error fetching permissions:', err);
@@ -362,68 +385,48 @@ const Reports = () => {
     } catch (err) { console.error('Error loading batches:', err); }
   };
 
- const loadTrainers = async () => {
+  const loadTrainers = async () => {
   setLoadingTrainers(true);
   try {
     const token = localStorage.getItem('token');
-    // Fetch all users with pagination
-    let allUsers = [];
-    let currentPage = 1;
-    let hasMore = true;
-    
-    while (hasMore) {
-      const res = await axios.get(`${BASE_URL}/users`, {
-        headers: { Authorization: `Bearer ${token}` },
-        params: { page: currentPage, limit: 100 }
-      });
-      
-      console.log('API Response:', res.data);
-      
-      if (res.data?.success && res.data?.data) {
-        allUsers = [...allUsers, ...res.data.data];
-        
-        // Check if there are more pages
-        const pagination = res.data.pagination || res.data.meta;
-        if (pagination && pagination.pages !== undefined) {
-          hasMore = currentPage < pagination.pages;
-          currentPage++;
-        } else {
-          hasMore = false;
-        }
-      } else {
-        hasMore = false;
-      }
-    }
-    
-    console.log('All users fetched:', allUsers);
-    
-    // Filter users with role "trainer" - role is an object with slug/name
-    const trainersList = allUsers.filter(user => {
-      // Check if role exists and is an object
-      if (user.role && typeof user.role === 'object') {
-        // Check both slug and name for 'trainer' (case insensitive)
-        return user.role.slug?.toLowerCase() === 'trainer' || 
-               user.role.name?.toLowerCase() === 'trainer';
-      }
-      // If role is a string, check that too
-      if (typeof user.role === 'string') {
-        return user.role.toLowerCase() === 'trainer';
-      }
-      return false;
+    const res = await axios.get(`${BASE_URL}/users`, {
+      headers: { Authorization: `Bearer ${token}` }
+      // Removed pagination params
     });
     
-    console.log('Filtered trainers:', trainersList);
-    setTrainers(trainersList);
+    console.log('API Response:', res.data);
     
-    if (trainersList.length === 0 && allUsers.length > 0) {
-      console.log('Available roles in users:', 
-        [...new Set(allUsers.map(u => {
-          if (u.role && typeof u.role === 'object') {
-            return `${u.role.name} (${u.role.slug})`;
-          }
-          return u.role;
-        }))]
-      );
+    if (res.data?.success && res.data?.data) {
+      const allUsers = res.data.data;
+      
+      console.log('All users fetched:', allUsers);
+      
+      const trainersList = allUsers.filter(user => {
+        if (user.role && typeof user.role === 'object') {
+          return user.role.slug?.toLowerCase() === 'trainer' || 
+                 user.role.name?.toLowerCase() === 'trainer';
+        }
+        if (typeof user.role === 'string') {
+          return user.role.toLowerCase() === 'trainer';
+        }
+        return false;
+      });
+      
+      console.log('Filtered trainers:', trainersList);
+      setTrainers(trainersList);
+      
+      if (trainersList.length === 0 && allUsers.length > 0) {
+        console.log('Available roles in users:', 
+          [...new Set(allUsers.map(u => {
+            if (u.role && typeof u.role === 'object') {
+              return `${u.role.name} (${u.role.slug})`;
+            }
+            return u.role;
+          }))]
+        );
+      }
+    } else {
+      console.log('No users data in response');
     }
   } catch (err) {
     console.error('Error loading trainers:', err);
@@ -433,9 +436,132 @@ const Reports = () => {
   }
 };
 
+  const loadColleges = async () => {
+    setLoadingColleges(true);
+    try {
+      const token = localStorage.getItem('token');
+      let allColleges = [];
+      let currentPage = 1;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const res = await axios.get(`http://192.168.1.7:8000/api/colleges`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { page: currentPage }
+        });
+        
+        console.log('Colleges API Response:', res.data);
+        
+        if (res.data?.data) {
+          allColleges = [...allColleges, ...res.data.data];
+          
+          if (res.data.last_page !== undefined) {
+            hasMore = currentPage < res.data.last_page;
+            currentPage++;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      console.log('All colleges fetched:', allColleges);
+      setColleges(allColleges);
+    } catch (err) {
+      console.error('Error loading colleges:', err);
+      showToast('error', 'Failed to load colleges list');
+    } finally {
+      setLoadingColleges(false);
+    }
+  };
+
+  const loadDomains = async () => {
+    setLoadingDomains(true);
+    try {
+      const token = localStorage.getItem('token');
+      let allDomains = [];
+      let currentPage = 1;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const res = await axios.get(`http://192.168.1.7:8000/api/domains`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { page: currentPage }
+        });
+        
+        console.log('Domains API Response:', res.data);
+        
+        if (res.data?.data) {
+          allDomains = [...allDomains, ...res.data.data];
+          
+          if (res.data.last_page !== undefined) {
+            hasMore = currentPage < res.data.last_page;
+            currentPage++;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      console.log('All domains fetched:', allDomains);
+      setDomains(allDomains);
+    } catch (err) {
+      console.error('Error loading domains:', err);
+      showToast('error', 'Failed to load domains list');
+    } finally {
+      setLoadingDomains(false);
+    }
+  };
+
+  const loadStudents = async () => {
+    setLoadingStudents(true);
+    try {
+      const token = localStorage.getItem('token');
+      let allStudents = [];
+      let currentPage = 1;
+      let hasMore = true;
+      
+      while (hasMore) {
+        const res = await axios.get(`http://192.168.1.7:8000/api/students`, {
+          headers: { Authorization: `Bearer ${token}` },
+          params: { page: currentPage }
+        });
+        
+        console.log('Students API Response:', res.data);
+        
+        if (res.data?.data) {
+          allStudents = [...allStudents, ...res.data.data];
+          
+          if (res.data.last_page !== undefined) {
+            hasMore = currentPage < res.data.last_page;
+            currentPage++;
+          } else {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+      
+      console.log('All students fetched:', allStudents);
+      setStudents(allStudents);
+    } catch (err) {
+      console.error('Error loading students:', err);
+      showToast('error', 'Failed to load students list');
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
   const canView = isSuperAdmin || hasPermission(userPermissions, MODULES.REPORTS, PAGES.REPORTS, ACTIONS.VIEW);
   
   const showToast = (type, message) => setToast({ open: true, type, message });
+
+  // Check if user is from college role
+  const isCollegeRole = userRole?.toLowerCase() === 'college';
 
   const doExport = async () => {
     if (!canView) { showToast('error', "You don't have permission to export reports."); return; }
@@ -443,11 +569,21 @@ const Reports = () => {
     try {
       const token = localStorage.getItem('token');
       const params = { type: exportType };
+      
+      // Date parameters
       if (exportType === 'day') params.date = exportDate;
       else if (exportType === 'week') { params.start_date = exportStartDate; params.end_date = exportEndDate; }
       else if (exportType === 'month') { params.month = exportMonth; params.year = exportYear; }
-      if (exportBatchId) params.batch_id = exportBatchId;
-      if (exportTrainerName) params.trainer_name = exportTrainerName;
+      
+      // Filter parameters - based on role
+      if (exportBatchId && !isCollegeRole) params.batch_id = exportBatchId;
+      if (exportTrainerName && !isCollegeRole) params.trainer_name = exportTrainerName;
+      if (exportCollegeId) params.college_id = exportCollegeId;
+      if (exportCompanyName) params.company_name = exportCompanyName;
+      if (exportDomainName && !isCollegeRole) params.domain_name = exportDomainName;
+      if (exportStudentName) params.student_name = exportStudentName;
+
+      console.log('Export params:', params);
 
       const response = await axios.get(`${BASE_URL}/reports/attendance`, {
         headers: { Authorization: `Bearer ${token}` },
@@ -468,8 +604,12 @@ const Reports = () => {
       if (exportType === 'day') filename += `_${exportDate}`;
       else if (exportType === 'week') filename += `_${exportStartDate}_to_${exportEndDate}`;
       else if (exportType === 'month') filename += `_${exportYear}_${String(exportMonth).padStart(2, '0')}`;
-      if (exportBatchId) filename += `_batch_${exportBatchId}`;
-      if (exportTrainerName) filename += `_trainer_${exportTrainerName}`;
+      if (exportBatchId && !isCollegeRole) filename += `_batch_${exportBatchId}`;
+      if (exportTrainerName && !isCollegeRole) filename += `_trainer_${exportTrainerName}`;
+      if (exportCollegeId) filename += `_college_${exportCollegeId}`;
+      if (exportCompanyName) filename += `_company_${exportCompanyName.replace(/\s/g, '_')}`;
+      if (exportDomainName && !isCollegeRole) filename += `_domain_${exportDomainName.replace(/\s/g, '_')}`;
+      if (exportStudentName) filename += `_student_${exportStudentName.replace(/\s/g, '_')}`;
       filename += ext;
 
       link.setAttribute('download', filename);
@@ -489,6 +629,10 @@ const Reports = () => {
   const resetFilters = () => {
     setExportBatchId('');
     setExportTrainerName('');
+    setExportCollegeId('');
+    setExportCompanyName('');
+    setExportDomainName('');
+    setExportStudentName('');
     setExportType('day');
     setExportDate(dayjs().format('YYYY-MM-DD'));
     setExportStartDate(dayjs().startOf('week').format('YYYY-MM-DD'));
@@ -501,8 +645,12 @@ const Reports = () => {
     'July', 'August', 'September', 'October', 'November', 'December'];
 
   const activeFilters = [
-    exportBatchId && 'Batch filtered',
-    exportTrainerName && 'Trainer filtered',
+    !isCollegeRole && exportBatchId && 'Batch filtered',
+    !isCollegeRole && exportTrainerName && 'Trainer filtered',
+    exportCollegeId && 'College filtered',
+    exportCompanyName && 'Company filtered',
+    !isCollegeRole && exportDomainName && 'Domain filtered',
+    exportStudentName && 'Student filtered',
   ].filter(Boolean);
 
   if (!permissionsLoaded) {
@@ -515,6 +663,14 @@ const Reports = () => {
       </div>
     );
   }
+
+  // Determine grid columns based on role
+  const getGridColumns = () => {
+    if (isCollegeRole) {
+      return "rpt-grid rpt-grid-3";
+    }
+    return "rpt-grid rpt-grid-4";
+  };
 
   return (
     <div className="rpt-root">
@@ -563,7 +719,7 @@ const Reports = () => {
             </p>
           </div>
           {activeFilters.length > 0 && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {activeFilters.map(f => (
                 <span key={f} className="rpt-badge"><Filter size={10} /> {f}</span>
               ))}
@@ -640,22 +796,91 @@ const Reports = () => {
               <span style={{ fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 0, color: '#C0C0C0' }}>— optional</span>
             </span>
 
-            <div className="rpt-grid rpt-grid-2" style={{ maxWidth: 520 }}>
-              <Field label="Batch">
-                <SelectWrap value={exportBatchId} onChange={e => setExportBatchId(e.target.value)}>
-                  <option value="">All batches</option>
-                  {availableBatches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+            <div className={getGridColumns()} style={{ maxWidth: isCollegeRole ? 780 : 1020 }}>
+              {/* Batch Filter - Hidden for College Role */}
+              {!isCollegeRole && (
+                <Field label="Batch">
+                  <SelectWrap value={exportBatchId} onChange={e => setExportBatchId(e.target.value)}>
+                    <option value="">All batches</option>
+                    {availableBatches.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  </SelectWrap>
+                </Field>
+              )}
+
+              {/* Trainer Filter - Hidden for College Role */}
+              {!isCollegeRole && (
+                <Field label="Trainer">
+                  <SelectWrap value={exportTrainerName} onChange={e => setExportTrainerName(e.target.value)}>
+                    <option value="">All trainers</option>
+                    {loadingTrainers ? (
+                      <option value="" disabled>Loading trainers...</option>
+                    ) : (
+                      trainers.map(trainer => (
+                        <option key={trainer._id} value={trainer.name}>
+                          {trainer.name}
+                        </option>
+                      ))
+                    )}
+                  </SelectWrap>
+                </Field>
+              )}
+
+              {/* College Filter - Visible for all roles */}
+              <Field label="College">
+                <SelectWrap value={exportCollegeId} onChange={e => setExportCollegeId(e.target.value)}>
+                  <option value="">All colleges</option>
+                  {loadingColleges ? (
+                    <option value="" disabled>Loading colleges...</option>
+                  ) : (
+                    colleges.map(college => (
+                      <option key={college.id} value={college.id}>
+                        {college.name}
+                      </option>
+                    ))
+                  )}
                 </SelectWrap>
               </Field>
-              <Field label="Trainer">
-                <SelectWrap value={exportTrainerName} onChange={e => setExportTrainerName(e.target.value)}>
-                  <option value="">All trainers</option>
-                  {loadingTrainers ? (
-                    <option value="" disabled>Loading trainers...</option>
+
+              {/* Company Filter - Visible for all roles */}
+              <Field label="Company">
+                <SelectWrap value={exportCompanyName} onChange={e => setExportCompanyName(e.target.value)}>
+                  <option value="">All companies</option>
+                  {companyOptions.map(company => (
+                    <option key={company} value={company}>
+                      {company}
+                    </option>
+                  ))}
+                </SelectWrap>
+              </Field>
+
+              {/* Domain Filter - Hidden for College Role */}
+              {/* {!isCollegeRole && (
+                <Field label="Domain">
+                  <SelectWrap value={exportDomainName} onChange={e => setExportDomainName(e.target.value)}>
+                    <option value="">All domains</option>
+                    {loadingDomains ? (
+                      <option value="" disabled>Loading domains...</option>
+                    ) : (
+                      domains.map(domain => (
+                        <option key={domain.id} value={domain.name}>
+                          {domain.name}
+                        </option>
+                      ))
+                    )}
+                  </SelectWrap>
+                </Field>
+              )} */}
+
+              {/* Student Filter - Visible for all roles */}
+              <Field label="Student">
+                <SelectWrap value={exportStudentName} onChange={e => setExportStudentName(e.target.value)}>
+                  <option value="">All students</option>
+                  {loadingStudents ? (
+                    <option value="" disabled>Loading students...</option>
                   ) : (
-                    trainers.map(trainer => (
-                      <option key={trainer._id} value={trainer.name}>
-                        {trainer.name}
+                    students.map(student => (
+                      <option key={student.id} value={student.name}>
+                        {student.name}
                       </option>
                     ))
                   )}

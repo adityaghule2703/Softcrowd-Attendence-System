@@ -35,7 +35,9 @@ const PrivateRoute = ({ children }) => {
 
 const App = () => {
   return (
-    <BrowserRouter>
+    // <BrowserRouter>
+
+     <BrowserRouter basename="/itr-frontend">
       <Routes>
         {/* Public Routes - No authentication needed */}
         <Route path="/login" element={<Login />} />

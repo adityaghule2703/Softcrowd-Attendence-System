@@ -72,7 +72,7 @@ const COLORS = {
   border: '#E2E8F0'
 };
 
-// Available modules/pages from the app routes
+// Available modules/pages from the app routes (TRAINERS removed)
 const ALL_MODULES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration' },
@@ -81,7 +81,7 @@ const ALL_MODULES = [
   { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  // TRAINERS module removed
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
   { module: 'USERS', page: 'Users', category: 'Administration' },
   { module: 'ROLES', page: 'Roles', category: 'Administration' },
@@ -201,8 +201,8 @@ const StatusChip = ({ isActive }) => {
   );
 };
 
-// Action Menu Component
-const ActionMenu = ({ role, onView, onEdit, onDelete }) => {
+// Action Menu Component (Delete button removed)
+const ActionMenu = ({ role, onView, onEdit }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -275,25 +275,6 @@ const ActionMenu = ({ role, onView, onEdit, onDelete }) => {
           <ListItemText>
             <Typography variant="body2" fontWeight={500} sx={{ color: COLORS.text.primary, fontSize: '0.75rem' }}>
               Edit
-            </Typography>
-          </ListItemText>
-        </MenuItem>
-        
-        <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
-        
-        <MenuItem 
-          onClick={() => {
-            onDelete(role);
-            handleClose();
-          }}
-          sx={{ py: 1.5 }}
-        >
-          <ListItemIcon sx={{ color: '#EF4444', minWidth: 36 }}>
-            <DeleteIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>
-            <Typography variant="body2" fontWeight={500} color="#EF4444" sx={{ fontSize: '0.75rem' }}>
-              Delete
             </Typography>
           </ListItemText>
         </MenuItem>
@@ -455,7 +436,7 @@ const RolesManagement = () => {
     showNotification('Role updated successfully!', 'success');
   };
 
-  // Handle delete role
+  // Handle delete role (keeping the function but not using it in action menu)
   const handleDeleteRole = async (roleId) => {
     setLoading(true);
     try {
@@ -635,29 +616,6 @@ const RolesManagement = () => {
               </Button>
             )}
             
-            {/* <Button
-              variant="outlined"
-              startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
-              onClick={handleRefresh}
-              disabled={loading}
-              sx={{ 
-                height: 36,
-                borderRadius: 1.5,
-                textTransform: 'none',
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                borderColor: COLORS.border,
-                color: COLORS.text.secondary,
-                '&:hover': {
-                  borderColor: COLORS.accent,
-                  color: COLORS.accent,
-                  bgcolor: `${COLORS.accent}10`
-                }
-              }}
-            >
-              Refresh
-            </Button> */}
-
             <Button
               variant="contained"
               startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
@@ -918,7 +876,6 @@ const RolesManagement = () => {
                             role={role}
                             onView={(r) => { setSelectedRole(r); setOpenViewModal(true); }}
                             onEdit={(r) => { setSelectedRole(r); setOpenEditModal(true); }}
-                            onDelete={(r) => { setSelectedRole(r); setOpenDeleteDialog(true); }}
                           />
                         </TableCell>
                       </TableRow>

@@ -1974,10 +1974,9 @@ const BlockUnblockDialog = ({ open, onClose, student, onBlockUnblock, canDelete,
   );
 };
 
-// Assign Batch Dialog Component
+// Assign Batch Dialog Component (Updated - Date removed)
 const AssignBatchDialog = ({ open, onClose, student, batches, onAssign }) => {
   const [selectedBatch, setSelectedBatch] = useState(null);
-  const [startDate, setStartDate] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -1986,8 +1985,6 @@ const AssignBatchDialog = ({ open, onClose, student, batches, onAssign }) => {
   useEffect(() => {
     if (student) {
       setAssignedBatches(student.batches || []);
-      const today = new Date().toISOString().split('T')[0];
-      setStartDate(today);
       setError('');
       setSuccess('');
     }
@@ -2003,14 +2000,9 @@ const AssignBatchDialog = ({ open, onClose, student, batches, onAssign }) => {
     }
   };
 
-  const handleAssign = async () => {
+ const handleAssign = async () => {
   if (!selectedBatch) {
     setError('Please select a batch');
-    return;
-  }
-
-  if (!startDate) {
-    setError('Please select start date');
     return;
   }
 
@@ -2028,37 +2020,30 @@ const AssignBatchDialog = ({ open, onClose, student, batches, onAssign }) => {
     const response = await axios.post(`${BASE_URL}/assign-batch`, {
       student_id: student.id,
       batch_id: selectedBatch.id,
-      start_date: startDate
+      start_date: new Date().toISOString().split('T')[0]
     }, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
 
-    if (response.data && response.data.message) {
-      // Fetch updated student data
-      const studentResponse = await axios.get(`${BASE_URL}/students/${student.id}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (studentResponse.data && studentResponse.data.data) {
-        const updatedBatches = studentResponse.data.data.batches || [];
+    // Check if the response is successful
+    if (response.data && response.data.message === "Batch assigned successfully") {
+      // Update local state immediately without fetching again
+      const assignedBatch = batches.find(b => b.id === selectedBatch.id);
+      if (assignedBatch) {
+        const updatedBatches = [...assignedBatches, assignedBatch];
         setAssignedBatches(updatedBatches);
         onAssign(student.id, updatedBatches);
-        showNotification('Batch assigned successfully!', 'success');
-        setSelectedBatch(null);
-        setStartDate(new Date().toISOString().split('T')[0]);
-        
-        // Close the modal after successful assignment
-        setTimeout(() => {
-          onClose(); // This will close the modal
-        }, 1500); // Give time to see the success message
       }
+      
+      // Close modal immediately
+      onClose();
     } else {
       throw new Error('Invalid response from server');
     }
   } catch (err) {
     console.error('Error assigning batch:', err);
     const errorMessage = err.response?.data?.message || 'Failed to assign batch. Please try again.';
-    showNotification(errorMessage, 'error');
+    setError(errorMessage);
   } finally {
     setLoading(false);
   }
@@ -2076,14 +2061,9 @@ const AssignBatchDialog = ({ open, onClose, student, batches, onAssign }) => {
       });
 
       if (response.data && response.data.status === true) {
-        // Immediately remove the batch from UI
         const updatedBatches = assignedBatches.filter(batch => batch.id !== batchId);
         setAssignedBatches(updatedBatches);
-        
-        // Show success message
         showNotification(response.data.message || 'Batch unassigned successfully', 'success');
-        
-        // Notify parent component
         onAssign(student.id, updatedBatches);
       } else {
         throw new Error(response.data.message || 'Invalid response from server');
@@ -2192,20 +2172,10 @@ const AssignBatchDialog = ({ open, onClose, student, batches, onAssign }) => {
                   )}
                 />
 
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="Start Date"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  InputLabelProps={{ shrink: true }}
-                />
-
                 <Button
                   variant="contained"
                   onClick={handleAssign}
-                  disabled={loading || !selectedBatch || !startDate}
+                  disabled={loading || !selectedBatch}
                   startIcon={loading ? <CircularProgress size={16} /> : <AssignmentIcon />}
                   sx={{
                     height: 40,

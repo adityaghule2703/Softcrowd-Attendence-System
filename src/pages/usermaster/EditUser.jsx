@@ -62,7 +62,7 @@ const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 // Modules that only have VIEW permission
 const VIEW_ONLY_MODULES = ['DASHBOARD', 'REPORTS'];
 
-// All pages/modules from sidebar
+// All pages/modules from sidebar (TRAINERS removed)
 const ALL_PAGES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard', viewOnly: true },
   { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters', viewOnly: false },
@@ -71,7 +71,7 @@ const ALL_PAGES = [
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters', viewOnly: false },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters', viewOnly: false },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters', viewOnly: false },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters', viewOnly: false },
+  // TRAINERS module removed
   { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions', viewOnly: false },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration', viewOnly: false },
   { module: 'USERS', page: 'Users', category: 'Administration', viewOnly: false },
@@ -96,7 +96,7 @@ const groupedPages = ALL_PAGES.reduce((acc, page) => {
   return acc;
 }, {});
 
-// Map module and action to permission ID
+// Map module and action to permission ID (TRAINERS entries removed)
 const getPermissionId = (moduleKey, action) => {
   const mapping = {
     'DASHBOARD_VIEW': 1,
@@ -124,10 +124,7 @@ const getPermissionId = (moduleKey, action) => {
     'STUDENT_MANAGEMENT_CREATE': 45,
     'STUDENT_MANAGEMENT_UPDATE': 46,
     'STUDENT_MANAGEMENT_DELETE': 47,
-    'TRAINERS_VIEW': 51,
-    'TRAINERS_CREATE': 52,
-    'TRAINERS_UPDATE': 53,
-    'TRAINERS_DELETE': 54,
+    // TRAINERS entries removed (51-54)
     'ATTENDANCE_VIEW': 71,
     'ATTENDANCE_CREATE': 72,
     'ATTENDANCE_UPDATE': 73,
@@ -165,7 +162,7 @@ const EditUser = ({ open, onClose, user, onUpdate }) => {
     password_confirmation: '',
     role_id: '',
     is_active: true,
-    college_id: '' // Add college_id field
+    college: '' // Changed from college_id to college
   });
   
   // User permissions data
@@ -265,7 +262,7 @@ const EditUser = ({ open, onClose, user, onUpdate }) => {
           password_confirmation: '',
           role_id: userData.role?.id || '',
           is_active: userData.is_active !== undefined ? userData.is_active : true,
-          college_id: userData.college_id || '' // Set college_id from user data
+          college: userData.college || '' // Set college from user data
         });
         
         // Store user permissions from API response
@@ -315,12 +312,12 @@ const EditUser = ({ open, onClose, user, onUpdate }) => {
         setPermissions(initialPermissions);
         setRolePermissions(rolePermMap);
         
-        // Set selected college if role is college and college_id exists
-       if (role && role.name.toLowerCase() === 'college' && userData.college) {
-  // Find college by name instead of ID
-  const college = colleges.find(c => c.name === userData.college);
-  setSelectedCollege(college || null);
-}
+        // Set selected college if role is college and college exists
+        if (role && role.name.toLowerCase() === 'college' && userData.college) {
+          // Find college by name
+          const college = colleges.find(c => c.name === userData.college);
+          setSelectedCollege(college || null);
+        }
         
         // Expand all categories by default
         const expanded = {};
@@ -346,7 +343,7 @@ const EditUser = ({ open, onClose, user, onUpdate }) => {
   }, [open]);
 
   useEffect(() => {
-    if (open && user && user.id && roles.length > 0) {
+    if (open && user && user.id && roles.length > 0 && colleges.length > 0) {
       fetchUserDetails(user.id);
     }
   }, [open, user, roles, colleges]);
@@ -357,8 +354,8 @@ const EditUser = ({ open, onClose, user, onUpdate }) => {
       setFormData(prev => ({
         ...prev,
         role_id: newValue.id,
-        // Reset college_id if role is not college
-        college_id: newValue.name.toLowerCase() === 'college' ? prev.college_id : ''
+        // Reset college if role is not college
+        college: newValue.name.toLowerCase() === 'college' ? prev.college : ''
       }));
       
       // Reset selected college if role is not college
@@ -397,7 +394,7 @@ const EditUser = ({ open, onClose, user, onUpdate }) => {
       setFormData(prev => ({
         ...prev,
         role_id: '',
-        college_id: ''
+        college: ''
       }));
       setSelectedCollege(null);
       // Reset permissions
@@ -414,13 +411,13 @@ const EditUser = ({ open, onClose, user, onUpdate }) => {
     }
   };
 
-const handleCollegeChange = (event, newValue) => {
-  setSelectedCollege(newValue);
-  setFormData(prev => ({
-    ...prev,
-    college: newValue ? newValue.name : '' // Send college NAME instead of ID
-  }));
-};
+  const handleCollegeChange = (event, newValue) => {
+    setSelectedCollege(newValue);
+    setFormData(prev => ({
+      ...prev,
+      college: newValue ? newValue.name : '' // Send college NAME instead of ID
+    }));
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -546,7 +543,7 @@ const handleCollegeChange = (event, newValue) => {
     }
 
     // Validate college selection if role is college
-    if (selectedRole && selectedRole.name.toLowerCase() === 'college' && !formData.college_id) {
+    if (selectedRole && selectedRole.name.toLowerCase() === 'college' && !formData.college) {
       setError('Please select a college');
       return false;
     }
@@ -581,10 +578,10 @@ const handleCollegeChange = (event, newValue) => {
         requestData.password_confirmation = formData.password_confirmation;
       }
 
-      // Add college_id to request if role is college
-     if (selectedRole && selectedRole.name.toLowerCase() === 'college') {
-  requestData.college = formData.college; // This will be the college name like "KTHM"
-}
+      // Add college to request if role is college
+      if (selectedRole && selectedRole.name.toLowerCase() === 'college') {
+        requestData.college = formData.college; // This will be the college name like "KTHM"
+      }
 
       const response = await axios.put(`${BASE_URL}/users/${user.id}`, requestData, {
         headers: {
@@ -1171,7 +1168,7 @@ const handleCollegeChange = (event, newValue) => {
         <Button
           variant="contained"
           onClick={handleSubmit}
-          disabled={loading || !formData.role_id || !formData.name.trim() || !formData.mobile.trim() || !formData.email.trim() || (isCollegeRole && !formData.college_id)}
+          disabled={loading || !formData.role_id || !formData.name.trim() || !formData.mobile.trim() || !formData.email.trim() || (isCollegeRole && !formData.college)}
           startIcon={loading ? <CircularProgress size={16} /> : <EditIcon sx={{ fontSize: '1rem' }} />}
           sx={{
             height: 36,

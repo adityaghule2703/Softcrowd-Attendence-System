@@ -17,6 +17,8 @@ const Dashboard = () => {
   })
   const [students, setStudents] = useState([])
   const [loading, setLoading] = useState(true)
+  const [recentBatches, setRecentBatches] = useState([])
+  const [batchesLoading, setBatchesLoading] = useState(true)
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -48,7 +50,25 @@ const Dashboard = () => {
       }
     }
 
+    const fetchRecentBatches = async () => {
+      try {
+        const token = localStorage.getItem('token')
+        const headers = { Authorization: `Bearer ${token}` }
+        
+        const response = await axios.get(`${BASE_URL}/batches`, { headers })
+        // Get latest 5 batches (first 5 from the response)
+        const latestBatches = response.data.data.slice(0, 5)
+        setRecentBatches(latestBatches)
+      } catch (err) {
+        console.error('Error fetching batches:', err)
+        setRecentBatches([])
+      } finally {
+        setBatchesLoading(false)
+      }
+    }
+
     fetchStats()
+    fetchRecentBatches()
   }, [])
 
   const stats = [
@@ -102,47 +122,27 @@ const Dashboard = () => {
     },
   ]
 
-  const recentActivities = [
-    { user: "Alex Johnson", action: "added new user", time: "2 min ago", type: "user" },
-    { user: "Sarah Miller", action: "updated billing settings", time: "15 min ago", type: "settings" },
-    { user: "Mike Wilson", action: "completed order #2345", time: "1 hour ago", type: "order" },
-    { user: "Emma Davis", action: "uploaded monthly report", time: "2 hours ago", type: "report" },
-    { user: "John Smith", action: "created new project", time: "4 hours ago", type: "project" },
-  ]
+  // Format date to readable format
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
 
-  const getActivityIcon = (type) => {
-    switch(type) {
-      case 'user':
-        return (
-          <svg className="w-4 h-4 text-[#00AEED]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-          </svg>
-        )
-      case 'settings':
-        return (
-          <svg className="w-4 h-4 text-[#00AEED]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-          </svg>
-        )
-      case 'order':
-        return (
-          <svg className="w-4 h-4 text-[#00AEED]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        )
-      case 'report':
-        return (
-          <svg className="w-4 h-4 text-[#00AEED]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        )
-      default:
-        return (
-          <svg className="w-4 h-4 text-[#00AEED]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-          </svg>
-        )
-    }
+  // Format time to readable format
+  const formatTime = (timeString) => {
+    if (!timeString) return 'N/A'
+    const date = new Date(`2000-01-01T${timeString}`)
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+  }
+
+  // Get icon based on domain or batch type
+  const getBatchIcon = (batch) => {
+    return (
+      <svg className="w-4 h-4 text-[#00AEED]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+      </svg>
+    )
   }
 
   return (
@@ -155,25 +155,7 @@ const Dashboard = () => {
             <h1 className="text-xl font-bold" style={{ color: '#424347' }}>Dashboard Overview</h1>
             <p className="text-xs mt-0.5" style={{ color: '#6B7280' }}>Welcome back! Here's what's happening with your business today.</p>
           </div>
-          <div className="flex items-center gap-2">
-            <select
-              value={selectedPeriod}
-              onChange={(e) => setSelectedPeriod(e.target.value)}
-              className="px-3 py-1.5 text-xs border rounded-md focus:outline-none focus:ring-1 focus:ring-[#00AEED] focus:border-transparent"
-              style={{ borderColor: '#E5E7EB', color: '#6B7280' }}
-            >
-              <option>Last 7 days</option>
-              <option>Last 30 days</option>
-              <option>Last 3 months</option>
-              <option>Last year</option>
-            </select>
-            <button className="px-3 py-1.5 text-xs text-white rounded-md transition-all font-medium flex items-center gap-1.5" style={{ background: '#00AEED' }}>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Generate Report
-            </button>
-          </div>
+        
         </div>
 
         {/* Stats Cards */}
@@ -212,76 +194,74 @@ const Dashboard = () => {
           ))}
         </div>
 
-        {/* Charts Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {/* Revenue Chart */}
-          <div className="bg-white rounded-lg p-4 border shadow-sm" style={{ borderColor: '#E5E7EB' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold" style={{ color: '#424347' }}>Revenue Overview</h3>
-                <p className="text-[11px] mt-0.5" style={{ color: '#6B7280' }}>Monthly revenue and orders trends</p>
-              </div>
-              <select className="text-[11px] border rounded-md px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#00AEED] focus:border-transparent" style={{ borderColor: '#E5E7EB', color: '#6B7280' }}>
-                <option>Last 7 days</option>
-                <option>Last 30 days</option>
-                <option>Last 3 months</option>
-              </select>
-            </div>
-            <div className="h-72">
-              <LineChart />
-            </div>
-          </div>
-
-          {/* Top Products Chart */}
-          <div className="bg-white rounded-lg p-4 border shadow-sm" style={{ borderColor: '#E5E7EB' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-semibold" style={{ color: '#424347' }}>Top Products</h3>
-                <p className="text-[11px] mt-0.5" style={{ color: '#6B7280' }}>Best selling products by revenue</p>
-              </div>
-              <button className="text-[11px] font-medium" style={{ color: '#00AEED' }}>
-                View All
-              </button>
-            </div>
-            <div className="h-72">
-              <BarChart />
-            </div>
-          </div>
-        </div>
-
         {/* Second Row Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-          {/* Device Usage */}
+          {/* Available Domains */}
           <div className="bg-white rounded-lg p-4 border shadow-sm" style={{ borderColor: '#E5E7EB' }}>
-            <h3 className="text-sm font-semibold mb-4" style={{ color: '#424347' }}>Device Usage</h3>
+            <h3 className="text-sm font-semibold mb-4" style={{ color: '#424347' }}>Available Domains</h3>
             <div className="h-56">
               <DoughnutChart />
             </div>
           </div>
 
-          {/* Recent Activities */}
+          {/* Recent Batches */}
           <div className="bg-white rounded-lg p-4 border shadow-sm lg:col-span-2" style={{ borderColor: '#E5E7EB' }}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold" style={{ color: '#424347' }}>Recent Activities</h3>
+              <h3 className="text-sm font-semibold" style={{ color: '#424347' }}>Recent Batches</h3>
               <button className="text-[11px] font-medium" style={{ color: '#00AEED' }}>
-                View All
+                View All Batches
               </button>
             </div>
             <div className="space-y-3">
-              {recentActivities.map((activity, index) => (
-                <div key={index} className="flex items-center gap-3 p-2 rounded-md transition-colors hover:bg-gray-50">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0, 174, 237, 0.1)' }}>
-                    {getActivityIcon(activity.type)}
+              {batchesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#00AEED] mx-auto mb-2"></div>
+                    <p className="text-xs" style={{ color: '#9CA3AF' }}>Loading batches...</p>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs" style={{ color: '#6B7280' }}>
-                      <span className="font-medium" style={{ color: '#424347' }}>{activity.user}</span> {activity.action}
-                    </p>
-                    <p className="text-[10px] mt-0.5" style={{ color: '#9CA3AF' }}>{activity.time}</p>
-                  </div>
-                  <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#00AEED' }}></div>
                 </div>
-              ))}
+              ) : recentBatches.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-xs" style={{ color: '#9CA3AF' }}>No batches found</p>
+                </div>
+              ) : (
+                recentBatches.map((batch) => (
+                  <div key={batch.id} className="flex items-center gap-3 p-2 rounded-md transition-colors hover:bg-gray-50">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(0, 174, 237, 0.1)' }}>
+                      {getBatchIcon(batch)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-xs font-medium" style={{ color: '#424347' }}>{batch.name}</p>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(0, 174, 237, 0.1)', color: '#00AEED' }}>
+                          {batch.domain?.name || 'No Domain'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <p className="text-[10px]" style={{ color: '#6B7280' }}>
+                          Trainer: {batch.trainer_name || batch.trainer?.name || 'N/A'}
+                        </p>
+                        <span className="text-[8px]" style={{ color: '#D1D5DB' }}>•</span>
+                        <p className="text-[10px]" style={{ color: '#6B7280' }}>
+                          Strength: {batch.strength || 0}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-[9px]" style={{ color: '#9CA3AF' }}>
+                          {formatDate(batch.start_date)} - {formatDate(batch.end_date)}
+                        </p>
+                        <span className="text-[8px]" style={{ color: '#D1D5DB' }}>•</span>
+                        <p className="text-[9px]" style={{ color: '#9CA3AF' }}>
+                          {formatTime(batch.start_time)} - {formatTime(batch.end_time)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0">
+                      <div className={`w-1.5 h-1.5 rounded-full ${batch.is_paused ? 'bg-red-500' : 'bg-green-500'}`}></div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

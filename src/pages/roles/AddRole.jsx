@@ -68,7 +68,7 @@ const getAvailableActions = (module) => {
   return ALL_ACTIONS;
 };
 
-// All pages with their module keys
+// All pages with their module keys (TRAINERS removed)
 const ALL_PAGES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard', viewOnly: true },
   { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters', viewOnly: false },
@@ -77,7 +77,7 @@ const ALL_PAGES = [
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters', viewOnly: false },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters', viewOnly: false },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters', viewOnly: false },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters', viewOnly: false },
+  // TRAINERS module removed
   { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions', viewOnly: false },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration', viewOnly: false },
   { module: 'USERS', page: 'Users', category: 'Administration', viewOnly: false },
@@ -94,7 +94,7 @@ const groupedPages = ALL_PAGES.reduce((acc, page) => {
   return acc;
 }, {});
 
-// Map module and action to permission ID
+// Map module and action to permission ID (TRAINERS entries removed)
 const getPermissionId = (moduleKey, action) => {
   const mapping = {
     'DASHBOARD_VIEW': 1,
@@ -114,10 +114,7 @@ const getPermissionId = (moduleKey, action) => {
     'STUDENT_MANAGEMENT_CREATE': 45,
     'STUDENT_MANAGEMENT_UPDATE': 46,
     'STUDENT_MANAGEMENT_DELETE': 47,
-    'TRAINERS_VIEW': 51,
-    'TRAINERS_CREATE': 52,
-    'TRAINERS_UPDATE': 53,
-    'TRAINERS_DELETE': 54,
+    // TRAINERS entries removed (51-54)
     'COLLEGE_MANAGEMENT_VIEW': 57,
     'COLLEGE_MANAGEMENT_CREATE': 58,
     'COLLEGE_MANAGEMENT_UPDATE': 59,

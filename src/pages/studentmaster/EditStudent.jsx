@@ -570,29 +570,33 @@ const validatePhone = (phone) => {
 
 const EditStudent = ({ open, onClose, student, onUpdate }) => {
   const [colleges, setColleges] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [filteredDepartments, setFilteredDepartments] = useState([]);
   const [selectedCollege, setSelectedCollege] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [loadingColleges, setLoadingColleges] = useState(false);
-  const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
     college_id: '',
     department_id: '',
+    department_name: '',
     password: '',
     company_name: ''
   });
   const [fieldErrors, setFieldErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isDataLoaded, setIsDataLoaded] = useState(false);
 
   useEffect(() => {
     if (open) {
       loadCollegesFromAPI();
-      loadDepartmentsFromAPI();
+    } else {
+      // Reset when dialog closes
+      setIsDataLoaded(false);
+      setSelectedCollege(null);
+      setSelectedDepartment(null);
+      setSelectedCompany(null);
     }
   }, [open]);
 
@@ -611,9 +615,15 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
           city: college.city,
           state: college.state,
           pincode: college.pincode,
-          address: college.address
+          address: college.address,
+          departments: college.department_name || []
         }));
         setColleges(transformedColleges);
+        
+        // After colleges are loaded, populate the form with student data
+        if (student) {
+          populateFormWithStudentData(transformedColleges, student);
+        }
       }
     } catch (error) {
       console.error('Error loading colleges:', error);
@@ -623,83 +633,74 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
     }
   };
 
-  const loadDepartmentsFromAPI = async () => {
-    setLoadingDepartments(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${BASE_URL}/departments`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-
-      if (response.data && response.data.data) {
-        const transformedDepartments = response.data.data.map(dept => ({
-          id: dept.id,
-          department_name: dept.department_name,
-          college_id: dept.college_id,
-          coordinator_name: dept.coordinator_name,
-          coordinator_contact: dept.coordinator_contact,
-          coordinator_email: dept.coordinator_email
-        }));
-        setDepartments(transformedDepartments);
-      }
-    } catch (error) {
-      console.error('Error loading departments:', error);
-      setError('Failed to load departments');
-    } finally {
-      setLoadingDepartments(false);
+  // Function to populate form with student data
+  const populateFormWithStudentData = (collegesList, studentData) => {
+    console.log('Populating form with student data:', studentData);
+    
+    const collegeId = studentData.collegeId || studentData.college_id;
+    const departmentName = studentData.departmentName || studentData.department_name || '';
+    const departmentId = studentData.departmentId || studentData.department_id;
+    
+    setFormData({
+      name: studentData.name || '',
+      mobile: studentData.mobile || '',
+      college_id: collegeId || '',
+      department_id: departmentId || '',
+      department_name: departmentName,
+      password: '',
+      company_name: studentData.company_name || ''
+    });
+    
+    // Find and set selected college
+    const foundCollege = collegesList.find(c => c.id === collegeId);
+    console.log('Found college:', foundCollege);
+    setSelectedCollege(foundCollege || null);
+    
+    // Set selected company
+    const companyName = studentData.company_name || '';
+    console.log('Setting company name to:', companyName);
+    if (companyName && COMPANY_OPTIONS.includes(companyName)) {
+      setSelectedCompany(companyName);
     }
+    
+    // Set selected department after college is set
+    if (foundCollege && departmentName) {
+      console.log('Looking for department:', departmentName, 'in college departments:', foundCollege.departments);
+      const foundDepartment = foundCollege.departments.find(dept => dept === departmentName);
+      console.log('Found department:', foundDepartment);
+      if (foundDepartment) {
+        setSelectedDepartment(foundDepartment);
+      } else {
+        console.warn('Department not found:', departmentName);
+        setSelectedDepartment(null);
+      }
+    }
+    
+    setIsDataLoaded(true);
   };
 
-  // Populate form when student data is available
+  // Update department selection when selected college changes
   useEffect(() => {
-    if (student && colleges.length > 0 && departments.length > 0) {
-      console.log('Student data in EditStudent:', student);
-      
-      setFormData({
-        name: student.name || '',
-        mobile: student.mobile || '',
-        college_id: student.collegeId || student.college_id || '',
-        department_id: student.departmentId || student.department_id || '',
-        password: '',
-        company_name: student.company_name || ''
-      });
-      
-      // Find and set selected college
-      const collegeId = student.collegeId || student.college_id;
-      const foundCollege = colleges.find(c => c.id === collegeId);
-      setSelectedCollege(foundCollege || null);
-      
-      // Find and set selected department
-      if (collegeId) {
-        const filtered = departments.filter(dept => dept.college_id === collegeId);
-        const departmentId = student.departmentId || student.department_id;
-        const foundDepartment = filtered.find(d => d.id === departmentId);
-        setSelectedDepartment(foundDepartment || null);
-      }
-      
-      // Set selected company
-      const companyName = student.company_name || '';
-      console.log('Setting company name to:', companyName);
-      if (companyName && COMPANY_OPTIONS.includes(companyName)) {
-        setSelectedCompany(companyName);
-      }
-    }
-  }, [student, colleges, departments]);
-
-  // Filter departments based on selected college
-  useEffect(() => {
-    if (selectedCollege) {
-      const filtered = departments.filter(dept => dept.college_id === selectedCollege.id);
-      setFilteredDepartments(filtered);
-      
-      if (selectedDepartment && selectedDepartment.college_id !== selectedCollege.id) {
+    if (selectedCollege && formData.department_name && isDataLoaded) {
+      // Check if the currently selected department exists in the new college
+      const departmentExists = selectedCollege.departments.find(dept => dept === formData.department_name);
+      if (departmentExists) {
+        if (selectedDepartment !== formData.department_name) {
+          setSelectedDepartment(formData.department_name);
+        }
+      } else {
+        // Department not found in this college, clear it
         setSelectedDepartment(null);
-        setFormData(prev => ({ ...prev, department_id: '' }));
+        setFormData(prev => ({ 
+          ...prev, 
+          department_id: '',
+          department_name: ''
+        }));
       }
-    } else {
-      setFilteredDepartments([]);
+    } else if (selectedCollege && !formData.department_name && isDataLoaded) {
+      setSelectedDepartment(null);
     }
-  }, [selectedCollege, departments, selectedDepartment]);
+  }, [selectedCollege, formData.department_name, isDataLoaded, selectedDepartment]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -715,21 +716,29 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
 
   const handleCollegeChange = (event, newValue) => {
     setSelectedCollege(newValue);
-    setSelectedDepartment(null);
     setFieldErrors(prev => ({ ...prev, college_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
       college_id: newValue ? newValue.id : '',
-      department_id: ''
+      department_id: '',
+      department_name: ''
     }));
+    setSelectedDepartment(null);
   };
 
   const handleDepartmentChange = (event, newValue) => {
+    console.log('Department selected:', newValue);
     setSelectedDepartment(newValue);
     setFieldErrors(prev => ({ ...prev, department_id: '' }));
+    
+    // Find department ID if needed (using index as temporary ID)
+    const deptIndex = selectedCollege?.departments.indexOf(newValue);
+    const deptId = deptIndex !== undefined && deptIndex !== -1 ? deptIndex + 1 : '';
+    
     setFormData(prev => ({ 
       ...prev, 
-      department_id: newValue ? newValue.id : ''
+      department_id: deptId,
+      department_name: newValue || ''
     }));
   };
 
@@ -764,7 +773,7 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
       isValid = false;
     }
 
-    if (!formData.department_id) {
+    if (!formData.department_name) {
       errors.department_id = 'Department name is required';
       isValid = false;
     }
@@ -801,7 +810,8 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
         name: formData.name.trim(),
         mobile: formData.mobile,
         college_id: parseInt(formData.college_id),
-        department_id: parseInt(formData.department_id),
+        department_id: parseInt(formData.department_id) || 0,
+        department_name: formData.department_name,
         company_name: formData.company_name
       };
       
@@ -820,14 +830,13 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
 
       if (response.data && response.data.data) {
         onUpdate(response.data.data);
-        onClose();
+        handleClose();
       } else {
         throw new Error('Invalid response from server');
       }
     } catch (err) {
       console.error('Error updating student:', err);
       
-      // Extract error message - prioritize 'error' field over 'message'
       let errorMessage = '';
       if (err.response?.data?.error) {
         errorMessage = err.response.data.error;
@@ -855,7 +864,13 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
   const handleClose = () => {
     setFieldErrors({});
     setError('');
+    setIsDataLoaded(false);
     onClose();
+  };
+
+  const getDepartmentsForCollege = () => {
+    if (!selectedCollege) return [];
+    return selectedCollege.departments;
   };
 
   const textFieldSx = {
@@ -891,7 +906,6 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
 
       <DialogContent sx={{ p: 2.5 }}>
         <Stack spacing={2}>
-          {/* Error Alert at the top */}
           {error && (
             <Alert 
               severity="error" 
@@ -970,11 +984,28 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
                       <TextField
                         {...params}
                         size="small"
-                        placeholder="Search and select college"
+                        placeholder={loadingColleges ? 'Loading colleges...' : 'Search and select college'}
                         error={!!fieldErrors.college_id}
                         helperText={fieldErrors.college_id}
                         sx={textFieldSx}
                       />
+                    )}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Box>
+                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
+                            {option.name}
+                          </Typography>
+                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
+                            {option.city}, {option.state} - {option.pincode}
+                          </Typography>
+                          {option.departments && option.departments.length > 0 && (
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary, display: 'block' }}>
+                              {option.departments.length} department(s) available
+                            </Typography>
+                          )}
+                        </Box>
+                      </li>
                     )}
                   />
                 </Box>
@@ -987,13 +1018,13 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
                   </Typography>
                   <Autocomplete
                     fullWidth
-                    options={filteredDepartments}
-                    loading={loadingDepartments}
+                    options={getDepartmentsForCollege()}
                     value={selectedDepartment}
                     onChange={handleDepartmentChange}
-                    getOptionLabel={(option) => option?.department_name || ''}
-                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                    getOptionLabel={(option) => option || ''}
+                    isOptionEqualToValue={(option, value) => option === value}
                     disabled={loading || !selectedCollege}
+                    loading={loadingColleges}
                     renderInput={(params) => (
                       <TextField
                         {...params}
@@ -1004,6 +1035,14 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
                         sx={textFieldSx}
                       />
                     )}
+                    renderOption={(props, option) => (
+                      <li {...props}>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {option}
+                        </Typography>
+                      </li>
+                    )}
+                    noOptionsText={!selectedCollege ? "Please select a college first" : "No departments found for this college"}
                   />
                 </Box>
               </Grid>

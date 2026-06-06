@@ -2092,17 +2092,17 @@ const HolidayManagement = () => {
             }}
           />
 
-          {canDelete && (
-            <DeleteHoliday 
-              open={openDeleteDialog}
-              onClose={() => {
-                openDeleteDialog(false);
-                setSelectedHoliday(null);
-              }}
-              holiday={selectedHoliday}
-              onDelete={handleDeleteHoliday}
-            />
-          )}
+         {canDelete && (
+  <DeleteHoliday 
+    open={openDeleteDialog}
+    onClose={() => {
+      setOpenDeleteDialog(false);  // ✅ Use the setter function
+      setSelectedHoliday(null);
+    }}
+    holiday={selectedHoliday}
+    onDelete={handleDeleteHoliday}
+  />
+)}
         </>
       )}
 

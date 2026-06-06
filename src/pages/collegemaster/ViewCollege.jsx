@@ -16,10 +16,9 @@ import {
   LocationOn as LocationIcon,
   Email as EmailIcon,
   Phone as PhoneIcon,
-  Edit as EditIcon,
-  Close as CloseIcon,
   PinDrop as PinDropIcon,
-  CalendarToday as CalendarIcon
+  CalendarToday as CalendarIcon,
+  School as SchoolIcon
 } from '@mui/icons-material';
 
 // Color constants
@@ -36,12 +35,11 @@ const COLORS = {
     white: '#FFFFFF',
     light: '#F8FAFC'
   },
-  border: '#E2E8F0'
+  border: '#E2E8F0',
+  error: '#EF4444'
 };
 
 const ViewCollege = ({ open, onClose, college, onEdit }) => {
-  if (!college) return null;
-
   // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -53,20 +51,22 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
     });
   };
 
-  // Get college initials for ID chip
-  const getCollegeInitials = (name) => {
-    if (!name) return 'CLG';
-    const words = name.split(' ');
-    if (words.length >= 2) {
-      return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
-    }
-    return name.substring(0, 3).toUpperCase();
-  };
-
   // Helper function to get contact number
   const getContactNumber = () => {
     return college.contact_number || college.contact || '-';
   };
+
+  // Get departments from college object
+  const getDepartments = () => {
+    if (college.department_name && Array.isArray(college.department_name)) {
+      return college.department_name;
+    }
+    return [];
+  };
+
+  if (!college) return null;
+
+  const departments = getDepartments();
 
   return (
     <Dialog
@@ -133,6 +133,48 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
             }}>
               {college?.name || 'N/A'}
             </Typography>
+          </Box>
+
+          <Divider sx={{ borderColor: COLORS.border }} />
+
+          {/* Departments Section - Using college.department_name array */}
+          <Box>
+            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1.5 }}>
+              <SchoolIcon sx={{ fontSize: '1.25rem', color: COLORS.accent }} />
+              <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
+                DEPARTMENTS
+              </Typography>
+            </Stack>
+            
+            {departments.length === 0 ? (
+              <Typography sx={{ 
+                fontSize: '0.75rem', 
+                color: COLORS.text.tertiary,
+                ml: 3.5,
+                fontStyle: 'italic'
+              }}>
+                No departments available for this college
+              </Typography>
+            ) : (
+              <Stack direction="row" spacing={1} sx={{ ml: 3.5, flexWrap: 'wrap', gap: 1 }}>
+                {departments.map((deptName, index) => (
+                  <Chip
+                    key={index}
+                    label={deptName}
+                    size="small"
+                    sx={{
+                      fontSize: '0.7rem',
+                      height: 28,
+                      bgcolor: `${COLORS.accent}20`,
+                      color: COLORS.accent,
+                      '& .MuiChip-label': {
+                        px: 1.5
+                      }
+                    }}
+                  />
+                ))}
+              </Stack>
+            )}
           </Box>
 
           <Divider sx={{ borderColor: COLORS.border }} />
@@ -315,7 +357,7 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
         borderTop: `1px solid ${COLORS.border}`,
         bgcolor: COLORS.background.white,
         display: 'flex',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
         gap: 1
       }}>
         <Button
@@ -337,8 +379,6 @@ const ViewCollege = ({ open, onClose, college, onEdit }) => {
         >
           Close
         </Button>
-
-       
       </DialogActions>
     </Dialog>
   );

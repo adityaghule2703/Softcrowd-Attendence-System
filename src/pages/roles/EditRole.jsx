@@ -56,7 +56,7 @@ const COLORS = {
 // All available actions
 const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
-// Define available actions for each module
+// Define available actions for each module (TRAINERS removed)
 const MODULE_ACTIONS = {
   'DASHBOARD': ['VIEW'],
   'DEPARTMENT_MANAGEMENT': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
@@ -65,7 +65,7 @@ const MODULE_ACTIONS = {
   'COLLEGE_MANAGEMENT': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
   'STUDENT_MANAGEMENT': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
   'BATCH_MANAGEMENT': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
-  'TRAINERS': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
+  // TRAINERS module removed
   'ATTENDANCE': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
   'USER_MANAGEMENT': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
   'USERS': ['VIEW', 'CREATE', 'UPDATE', 'DELETE'],
@@ -73,7 +73,7 @@ const MODULE_ACTIONS = {
   'REPORTS': ['VIEW']
 };
 
-// All pages from Sidebar
+// All pages from Sidebar (TRAINERS removed)
 const ALL_PAGES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
   { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
@@ -82,7 +82,7 @@ const ALL_PAGES = [
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  // TRAINERS module removed
   { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions' },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration' },
   { module: 'USERS', page: 'Users', category: 'Administration' },
@@ -99,7 +99,7 @@ const groupedPages = ALL_PAGES.reduce((acc, page) => {
   return acc;
 }, {});
 
-// Map module and action to permission ID (only use existing IDs from your database)
+// Map module and action to permission ID (TRAINERS entries removed)
 const getPermissionId = (moduleKey, action) => {
   const mapping = {
     // Dashboard Module
@@ -141,11 +141,7 @@ const getPermissionId = (moduleKey, action) => {
     'STUDENT_MANAGEMENT_UPDATE': 46,
     'STUDENT_MANAGEMENT_DELETE': 47,
     
-    // Trainers
-    'TRAINERS_VIEW': 51,
-    'TRAINERS_CREATE': 52,
-    'TRAINERS_UPDATE': 53,
-    'TRAINERS_DELETE': 54,
+    // TRAINERS entries removed (51-54)
     
     // Attendance
     'ATTENDANCE_VIEW': 71,
@@ -179,7 +175,7 @@ const getPermissionId = (moduleKey, action) => {
   return mapping[key] || null;
 };
 
-// Map permission ID back to module and action
+// Map permission ID back to module and action (TRAINERS entries removed)
 const getPermissionFromId = (permissionId) => {
   const reverseMapping = {
     // Dashboard Module
@@ -221,11 +217,7 @@ const getPermissionFromId = (permissionId) => {
     46: { module: 'STUDENT_MANAGEMENT', action: 'UPDATE' },
     47: { module: 'STUDENT_MANAGEMENT', action: 'DELETE' },
     
-    // Trainers
-    51: { module: 'TRAINERS', action: 'VIEW' },
-    52: { module: 'TRAINERS', action: 'CREATE' },
-    53: { module: 'TRAINERS', action: 'UPDATE' },
-    54: { module: 'TRAINERS', action: 'DELETE' },
+    // TRAINERS entries removed (51-54)
     
     // Attendance
     71: { module: 'ATTENDANCE', action: 'VIEW' },
@@ -334,6 +326,9 @@ const EditRole = ({ open, onClose, role, onUpdate }) => {
 
   const handleInputChange = (e) => {
     const { name, value, checked, type } = e.target;
+    // Prevent name field from being edited
+    if (name === 'name') return;
+    
     setFormData(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value
@@ -396,14 +391,9 @@ const EditRole = ({ open, onClose, role, onUpdate }) => {
   };
 
   const handleSubmit = async () => {
-    // Validation
+    // Validation - skip name validation since it's not editable
     if (!formData.name.trim()) {
       setError('Role name is required');
-      return;
-    }
-
-    if (formData.name.trim().length < 2) {
-      setError('Role name must be at least 2 characters');
       return;
     }
 
@@ -529,20 +519,30 @@ const EditRole = ({ open, onClose, role, onUpdate }) => {
                   fullWidth
                   name="name"
                   value={formData.name}
-                  onChange={handleInputChange}
-                  disabled={loading}
+                  disabled={true}  // Make the field disabled/read-only
                   placeholder="e.g., HR Manager, Admin, Employee"
                   size="small"
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 1.5,
-                      bgcolor: COLORS.background.light,
+                      bgcolor: `${COLORS.background.light}80`,  // Slightly different background to indicate read-only
                       fontSize: '0.75rem',
-                      '&:hover fieldset': { borderColor: COLORS.accent },
-                      '&.Mui-focused fieldset': { borderColor: COLORS.accent, borderWidth: 1 }
+                      '& fieldset': {
+                        borderColor: COLORS.border,
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: COLORS.border,
+                      }
+                    },
+                    '& .MuiInputBase-input.Mui-disabled': {
+                      WebkitTextFillColor: COLORS.text.primary,  // Keep text color normal
+                      opacity: 0.8
                     }
                   }}
                 />
+                <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary, mt: 0.5 }}>
+                  Role name cannot be changed
+                </Typography>
               </Box>
               
               <Box>

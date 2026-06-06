@@ -62,7 +62,7 @@ const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 // Modules that only have VIEW permission
 const VIEW_ONLY_MODULES = ['DASHBOARD', 'REPORTS'];
 
-// All pages/modules from sidebar
+// All pages/modules from sidebar (TRAINERS removed)
 const ALL_PAGES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard', viewOnly: true },
   { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters', viewOnly: false },
@@ -71,7 +71,7 @@ const ALL_PAGES = [
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters', viewOnly: false },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters', viewOnly: false },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters', viewOnly: false },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters', viewOnly: false },
+  // TRAINERS module removed
   { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions', viewOnly: false },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration', viewOnly: false },
   { module: 'USERS', page: 'Users', category: 'Administration', viewOnly: false },
@@ -96,7 +96,7 @@ const groupedPages = ALL_PAGES.reduce((acc, page) => {
   return acc;
 }, {});
 
-// Map module and action to permission ID
+// Map module and action to permission ID (TRAINERS entries removed)
 const getPermissionId = (moduleKey, action) => {
   const mapping = {
     'DASHBOARD_VIEW': 1,
@@ -124,10 +124,7 @@ const getPermissionId = (moduleKey, action) => {
     'STUDENT_MANAGEMENT_CREATE': 45,
     'STUDENT_MANAGEMENT_UPDATE': 46,
     'STUDENT_MANAGEMENT_DELETE': 47,
-    'TRAINERS_VIEW': 51,
-    'TRAINERS_CREATE': 52,
-    'TRAINERS_UPDATE': 53,
-    'TRAINERS_DELETE': 54,
+    // TRAINERS entries removed (51-54)
     'ATTENDANCE_VIEW': 71,
     'ATTENDANCE_CREATE': 72,
     'ATTENDANCE_UPDATE': 73,
@@ -154,6 +151,7 @@ const getPermissionId = (moduleKey, action) => {
 const AddUser = ({ open, onClose, onAdd }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
   
   // Form data
   const [formData, setFormData] = useState({
@@ -164,7 +162,7 @@ const AddUser = ({ open, onClose, onAdd }) => {
     password_confirmation: '',
     role_id: '',
     is_active: true,
-    college: '' // Changed from college_id to college
+    college: ''
   });
   
   // Roles data
@@ -260,13 +258,14 @@ const AddUser = ({ open, onClose, onAdd }) => {
       password_confirmation: '',
       role_id: '',
       is_active: true,
-      college: '' // Reset college
+      college: ''
     });
     setSelectedRole(null);
     setSelectedCollege(null);
     setPermissions({});
     setRolePermissions({});
     setError('');
+    setFieldErrors({});
     // Expand all categories
     const expanded = {};
     Object.keys(groupedPages).forEach(category => {
@@ -321,11 +320,13 @@ const AddUser = ({ open, onClose, onAdd }) => {
 
   const handleRoleChange = (event, newValue) => {
     setSelectedRole(newValue);
+    // Clear field errors when user makes changes
+    setFieldErrors(prev => ({ ...prev, role_id: '' }));
+    
     if (newValue) {
       setFormData(prev => ({
         ...prev,
         role_id: newValue.id,
-        // Reset college if role is not college
         college: newValue.name.toLowerCase() === 'college' ? prev.college : ''
       }));
       initializePermissionsFromRole(newValue);
@@ -355,15 +356,19 @@ const AddUser = ({ open, onClose, onAdd }) => {
   };
 
   const handleCollegeChange = (event, newValue) => {
-  setSelectedCollege(newValue);
-  setFormData(prev => ({
-    ...prev,
-    college: newValue ? newValue.name : '' // Send college NAME instead of ID
-  }));
-};
+    setSelectedCollege(newValue);
+    // Clear field errors when user makes changes
+    setFieldErrors(prev => ({ ...prev, college: '' }));
+    setFormData(prev => ({
+      ...prev,
+      college: newValue ? newValue.name : ''
+    }));
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    // Clear field error for this specific field when user starts typing
+    setFieldErrors(prev => ({ ...prev, [name]: '' }));
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -440,72 +445,82 @@ const AddUser = ({ open, onClose, onAdd }) => {
   };
 
   const validateForm = () => {
+    const errors = {};
+    
     if (!formData.name.trim()) {
-      setError('Name is required');
-      return false;
-    }
-
-    if (formData.name.length < 2) {
-      setError('Name must be at least 2 characters');
-      return false;
+      errors.name = 'Name is required';
+    } else if (formData.name.length < 2) {
+      errors.name = 'Name must be at least 2 characters';
     }
 
     if (!formData.mobile.trim()) {
-      setError('Mobile number is required');
-      return false;
-    }
-
-    if (!/^[0-9]{10}$/.test(formData.mobile)) {
-      setError('Please enter a valid 10-digit mobile number');
-      return false;
+      errors.mobile = 'Mobile number is required';
+    } else if (!/^[0-9]{10}$/.test(formData.mobile)) {
+      errors.mobile = 'Please enter a valid 10-digit mobile number';
     }
 
     if (!formData.email.trim()) {
-      setError('Email is required');
-      return false;
-    }
-
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      setError('Please enter a valid email address');
-      return false;
+      errors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Please enter a valid email address';
     }
 
     if (!formData.password) {
-      setError('Password is required');
-      return false;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return false;
+      errors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters';
     }
 
     if (formData.password !== formData.password_confirmation) {
-      setError('Passwords do not match');
-      return false;
+      errors.password_confirmation = 'Passwords do not match';
     }
 
     if (!formData.role_id) {
-      setError('Please select a role');
-      return false;
+      errors.role_id = 'Please select a role';
     }
 
     // Validate college selection if role is college
     if (selectedRole && selectedRole.name.toLowerCase() === 'college' && !formData.college) {
-      setError('Please select a college');
-      return false;
+      errors.college = 'Please select a college';
     }
 
-    return true;
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  // Helper function to parse API errors
+  const parseApiErrors = (errorResponse) => {
+    const errors = {};
+    
+    if (errorResponse.data && errorResponse.data.errors) {
+      // Handle Laravel style validation errors
+      const apiErrors = errorResponse.data.errors;
+      Object.keys(apiErrors).forEach(field => {
+        if (Array.isArray(apiErrors[field])) {
+          errors[field] = apiErrors[field][0]; // Take first error message
+        } else {
+          errors[field] = apiErrors[field];
+        }
+      });
+    } else if (errorResponse.data && errorResponse.data.message) {
+      // Handle general error message
+      setError(errorResponse.data.message);
+    }
+    
+    return errors;
   };
 
   const handleSubmit = async () => {
+    // Clear previous errors
+    setError('');
+    setFieldErrors({});
+    
+    // Validate form
     if (!validateForm()) {
       return;
     }
 
     setLoading(true);
-    setError('');
 
     try {
       const token = localStorage.getItem('token');
@@ -522,10 +537,10 @@ const AddUser = ({ open, onClose, onAdd }) => {
         permissions: permissionIds
       };
 
-      // Add college field to request if role is college (send the college ID)
+      // Add college field to request if role is college
       if (selectedRole && selectedRole.name.toLowerCase() === 'college') {
-  requestData.college = formData.college; // This will be the college name like "KTHM"
-}
+        requestData.college = formData.college;
+      }
 
       const response = await axios.post(`${BASE_URL}/users`, requestData, {
         headers: {
@@ -543,7 +558,25 @@ const AddUser = ({ open, onClose, onAdd }) => {
       }
     } catch (err) {
       console.error('Error creating user:', err);
-      setError(err.response?.data?.message || 'Failed to create user. Please try again.');
+      
+      if (err.response) {
+        // Check if it's a validation error (422)
+        if (err.response.status === 422) {
+          const fieldErrors = parseApiErrors(err.response);
+          if (Object.keys(fieldErrors).length > 0) {
+            setFieldErrors(fieldErrors);
+          } else {
+            setError(err.response.data?.message || 'Validation failed. Please check your input.');
+          }
+        } else {
+          // Handle other errors
+          setError(err.response.data?.message || 'Failed to create user. Please try again.');
+        }
+      } else if (err.request) {
+        setError('Network error. Please check your connection.');
+      } else {
+        setError(err.message || 'An unexpected error occurred.');
+      }
     } finally {
       setLoading(false);
     }
@@ -629,6 +662,8 @@ const AddUser = ({ open, onClose, onAdd }) => {
                   disabled={loading}
                   placeholder="John Doe"
                   size="small"
+                  error={!!fieldErrors.name}
+                  helperText={fieldErrors.name}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 1.5,
@@ -653,6 +688,8 @@ const AddUser = ({ open, onClose, onAdd }) => {
                   disabled={loading}
                   placeholder="9876543210"
                   size="small"
+                  error={!!fieldErrors.mobile}
+                  helperText={fieldErrors.mobile}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 1.5,
@@ -683,6 +720,8 @@ const AddUser = ({ open, onClose, onAdd }) => {
                   disabled={loading}
                   placeholder="john@example.com"
                   size="small"
+                  error={!!fieldErrors.email}
+                  helperText={fieldErrors.email}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 1.5,
@@ -746,6 +785,8 @@ const AddUser = ({ open, onClose, onAdd }) => {
                   disabled={loading}
                   placeholder="••••••••"
                   size="small"
+                  error={!!fieldErrors.password}
+                  helperText={fieldErrors.password}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 1.5,
@@ -771,6 +812,8 @@ const AddUser = ({ open, onClose, onAdd }) => {
                   disabled={loading}
                   placeholder="••••••••"
                   size="small"
+                  error={!!fieldErrors.password_confirmation}
+                  helperText={fieldErrors.password_confirmation}
                   sx={{
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 1.5,
@@ -805,6 +848,8 @@ const AddUser = ({ open, onClose, onAdd }) => {
                     {...params}
                     size="small"
                     placeholder="Select a role"
+                    error={!!fieldErrors.role_id}
+                    helperText={fieldErrors.role_id}
                     sx={{
                       '& .MuiOutlinedInput-root': {
                         borderRadius: 1.5,
@@ -852,6 +897,8 @@ const AddUser = ({ open, onClose, onAdd }) => {
                       {...params}
                       size="small"
                       placeholder="Select a college"
+                      error={!!fieldErrors.college}
+                      helperText={fieldErrors.college}
                       sx={{
                         '& .MuiOutlinedInput-root': {
                           borderRadius: 1.5,

@@ -152,32 +152,9 @@ const ViewDepartment = ({ open, onClose, department, onEdit }) => {
 
           <Divider sx={{ borderColor: COLORS.border }} />
 
-          {/* College Information */}
-          <Box>
-            <Stack direction="row" spacing={1.5} alignItems="center" sx={{ mb: 1 }}>
-              <BusinessIcon sx={{ fontSize: '1.25rem', color: COLORS.accent }} />
-              <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                COLLEGE INFORMATION
-              </Typography>
-            </Stack>
-            <Stack spacing={1.5} sx={{ ml: 3.5 }}>
-              <Typography sx={{ 
-                fontSize: '0.75rem', 
-                fontWeight: 500,
-                color: COLORS.text.primary
-              }}>
-                {getCollegeName()}
-              </Typography>
-              <Typography sx={{ 
-                fontSize: '0.7rem', 
-                color: COLORS.text.secondary
-              }}>
-                {getCollegeLocation()}
-              </Typography>
-            </Stack>
-          </Box>
+       
 
-          <Divider sx={{ borderColor: COLORS.border }} />
+          
 
           {/* Coordinator Information */}
           <Box>

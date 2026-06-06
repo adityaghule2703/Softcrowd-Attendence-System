@@ -75,7 +75,7 @@ const COLORS = {
 // All available actions
 const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
-// All possible pages/modules - This ensures ALL pages are shown
+// All possible pages/modules - This ensures ALL pages are shown (TRAINERS removed)
 const ALL_PAGES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
   { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
@@ -84,7 +84,7 @@ const ALL_PAGES = [
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  // TRAINERS module removed
   { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions' },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration' },
   { module: 'USERS', page: 'Users', category: 'Administration' },
@@ -814,29 +814,6 @@ const Users = () => {
           </Stack>
 
           <Stack direction="row" spacing={1.5} alignItems="center">
-            {/* <Button
-              variant="outlined"
-              startIcon={<RefreshIcon sx={{ fontSize: '1rem' }} />}
-              onClick={handleRefresh}
-              disabled={loading}
-              sx={{ 
-                height: 36,
-                borderRadius: 1.5,
-                textTransform: 'none',
-                fontSize: '0.75rem',
-                fontWeight: 500,
-                borderColor: COLORS.border,
-                color: COLORS.text.secondary,
-                '&:hover': {
-                  borderColor: COLORS.accent,
-                  color: COLORS.accent,
-                  bgcolor: `${COLORS.accent}10`
-                }
-              }}
-            >
-              Refresh
-            </Button> */}
-
             {canCreate && (
               <Button
                 variant="contained"

@@ -255,89 +255,115 @@ const Attendance = () => {
   const canUpdate = checkPermission(ACTIONS.UPDATE);
   const canDelete = checkPermission(ACTIONS.DELETE);
 
-  // Load attendance data with pagination and search
-  const loadAttendanceData = useCallback(async () => {
-    if (!canView && !isSuperAdmin) return;
-    
-    setLoading(true);
-    try {
-      const token = localStorage.getItem('token');
-      const startDate = currentMonth.startOf('month').format('YYYY-MM-DD');
-      const endDate = currentMonth.endOf('month').format('YYYY-MM-DD');
-      
-      const params = {
-        start_date: startDate,
-        end_date: endDate,
-        page: currentPage,
-        per_page: rowsPerPage,
-        search: searchTerm
-      };
-      
-      if (selectedBatch) {
-        params.batch_id = selectedBatch.id;
-      }
-      
-      const response = await axios.get(`${BASE_URL}/admin/attendance`, {
-        headers: { 'Authorization': `Bearer ${token}` },
-        params: params
-      });
+  // Update the loadAttendanceData function to correctly parse the API response
 
-      if (response.data && response.data.data) {
-        const groupedData = response.data.data
-          .filter(student => student.batches && student.batches.length > 0)
-          .map(student => ({
-            student_id: student.student_id,
-            student_name: student.student_name,
-            batches: student.batches || []
-          }));
-        
-        setAttendanceData(groupedData);
-        setTotalCount(response.data.total || 0);
-        setLastPage(response.data.last_page || 1);
-        
-        // Extract unique batches for filter (only on first load or when search/reset)
-        if (currentPage === 1 && !searchTerm && !selectedBatch) {
-          const uniqueBatches = [];
-          const batchMap = new Map();
-          groupedData.forEach(student => {
-            student.batches.forEach(batch => {
-              if (!batchMap.has(batch.batch_id)) {
-                batchMap.set(batch.batch_id, {
-                  id: batch.batch_id,
-                  name: batch.batch_name || `Batch ${batch.batch_id}`
-                });
-                uniqueBatches.push({
-                  id: batch.batch_id,
-                  name: batch.batch_name || `Batch ${batch.batch_id}`
-                });
-              }
-            });
-          });
-          setBatches(uniqueBatches);
+const loadAllBatches = useCallback(async () => {
+  try {
+    const token = localStorage.getItem('token');
+    let allBatches = [];
+    let currentPage = 1;
+    let lastPage = 1;
+    
+    // Fetch all pages of batches
+    do {
+      const response = await axios.get(`${BASE_URL}/batches`, {
+        headers: { 'Authorization': `Bearer ${token}` },
+        params: {
+          page: currentPage,
+          per_page: 100 // Fetch more per page to reduce API calls
         }
+      });
+      
+      if (response.data && response.data.data) {
+        allBatches = [...allBatches, ...response.data.data];
+        lastPage = response.data.last_page || currentPage;
+        currentPage++;
       } else {
-        setAttendanceData([]);
-        setTotalCount(0);
-        setLastPage(1);
+        break;
       }
-    } catch (error) {
-      console.error('Error loading attendance:', error);
+    } while (currentPage <= lastPage);
+    
+    // Transform the batch data to match your expected format
+    const formattedBatches = allBatches.map(batch => ({
+      id: batch.id,
+      name: batch.name
+    }));
+    
+    setBatches(formattedBatches);
+  } catch (error) {
+    console.error('Error loading all batches:', error);
+    setBatches([]);
+  }
+}, []);  
+
+const loadAttendanceData = useCallback(async () => {
+  if (!canView && !isSuperAdmin) return;
+  
+  setLoading(true);
+  try {
+    const token = localStorage.getItem('token');
+    const startDate = currentMonth.startOf('month').format('YYYY-MM-DD');
+    const endDate = currentMonth.endOf('month').format('YYYY-MM-DD');
+    
+    const params = {
+      start_date: startDate,
+      end_date: endDate,
+      page: currentPage,
+      per_page: rowsPerPage,
+      search: searchTerm
+    };
+    
+    if (selectedBatch) {
+      params.batch_id = selectedBatch.id;
+    }
+    
+    const response = await axios.get(`${BASE_URL}/admin/attendance`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+      params: params
+    });
+
+    if (response.data && response.data.data) {
+      const groupedData = response.data.data
+        .filter(student => student.batches && student.batches.length > 0)
+        .map(student => ({
+          student_id: student.student_id,
+          student_name: student.student_name,
+          batches: student.batches || []
+        }));
+      
+      setAttendanceData(groupedData);
+      
+      // FIX: Use the correct field names from API response
+      setTotalCount(response.data.total_students || 0);
+      setLastPage(response.data.last_page || 1);
+      
+      // Also update the page state to match current page from API
+      setCurrentPage(response.data.current_page || 1);
+      setPage((response.data.current_page || 1) - 1);
+    } else {
       setAttendanceData([]);
       setTotalCount(0);
       setLastPage(1);
-    } finally {
-      setLoading(false);
     }
-  }, [currentMonth, currentPage, rowsPerPage, searchTerm, selectedBatch, canView, isSuperAdmin]);
+  } catch (error) {
+    console.error('Error loading attendance:', error);
+    setAttendanceData([]);
+    setTotalCount(0);
+    setLastPage(1);
+  } finally {
+    setLoading(false);
+  }
+}, [currentMonth, currentPage, rowsPerPage, searchTerm, selectedBatch, canView, isSuperAdmin]);
 
   // Load data when dependencies change
-  useEffect(() => {
-    if (permissionsLoaded && (canView || isSuperAdmin)) {
-      loadAttendanceData();
-      loadBatchesForExport();
-      loadTrainers();
-    }
-  }, [loadAttendanceData, permissionsLoaded, canView, isSuperAdmin, currentMonth, currentPage, rowsPerPage, searchTerm, selectedBatch]);
+ useEffect(() => {
+  if (permissionsLoaded && (canView || isSuperAdmin)) {
+    loadAttendanceData();
+    loadAllBatches(); // Load all batches separately
+    loadBatchesForExport();
+    loadTrainers();
+  }
+}, [loadAttendanceData, loadAllBatches, permissionsLoaded, canView, isSuperAdmin]);
 
   // Debounce search
   useEffect(() => {
@@ -875,7 +901,7 @@ const Attendance = () => {
 
             <div className="flex gap-1">
               {/* Export Report Button - Only show if user has VIEW permission */}
-              {canView && (
+              {/* {canView && (
                 <button 
                   onClick={() => setExportDialogOpen(true)}
                   className="px-2 py-2 text-[10px] rounded-md flex items-center gap-1"
@@ -884,7 +910,7 @@ const Attendance = () => {
                   <FileSpreadsheet size={12} />
                   Export Report
                 </button>
-              )}
+              )} */}
             </div>
           </div>
         </div>

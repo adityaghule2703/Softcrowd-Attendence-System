@@ -573,7 +573,6 @@ import {
   DialogActions,
   Alert,
   Chip,
-  Autocomplete,
   CircularProgress
 } from '@mui/material';
 import { 
@@ -605,6 +604,7 @@ const COLORS = {
 };
 
 const validatePhone = (phone) => {
+  if (!phone) return true; // Phone is now optional
   const phoneRegex = /^[0-9]{10}$/;
   return phoneRegex.test(phone);
 };
@@ -616,11 +616,7 @@ const validateEmail = (email) => {
 };
 
 const EditDepartment = ({ open, onClose, department, onUpdate }) => {
-  const [colleges, setColleges] = useState([]);
-  const [selectedCollege, setSelectedCollege] = useState(null);
-  const [loadingColleges, setLoadingColleges] = useState(false);
   const [formData, setFormData] = useState({
-    college_id: '',
     department_name: '',
     coordinator_name: '',
     coordinator_contact: '',
@@ -630,62 +626,17 @@ const EditDepartment = ({ open, onClose, department, onUpdate }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Load colleges from API
-  useEffect(() => {
-    if (open) {
-      loadCollegesFromAPI();
-    }
-  }, [open]);
-
-  const loadCollegesFromAPI = async () => {
-    setLoadingColleges(true);
-    try {
-      const token = localStorage.getItem('token');
-      // Removed pagination params - just the basic URL
-      const response = await axios.get(`${BASE_URL}/colleges`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.data && response.data.data) {
-        const transformedColleges = response.data.data.map(college => ({
-          id: college.id,
-          name: college.name,
-          city: college.city,
-          state: college.state,
-          pincode: college.pincode,
-          address: college.address
-        }));
-        setColleges(transformedColleges);
-      } else {
-        setColleges([]);
-      }
-    } catch (error) {
-      console.error('Error loading colleges:', error);
-      setError('Failed to load colleges. Please refresh and try again.');
-    } finally {
-      setLoadingColleges(false);
-    }
-  };
-
   // Populate form when department data is available
   useEffect(() => {
-    if (department && colleges.length > 0) {
+    if (department && open) {
       setFormData({
-        college_id: department.collegeId || department.college_id || '',
         department_name: department.departmentName || department.department_name || '',
         coordinator_name: department.coordinatorName || department.coordinator_name || '',
         coordinator_contact: department.coordinatorContact || department.coordinator_contact || '',
         coordinator_email: department.coordinatorEmail || department.coordinator_email || ''
       });
-      
-      // Find and set selected college
-      const collegeId = department.collegeId || department.college_id;
-      const foundCollege = colleges.find(c => c.id === collegeId);
-      setSelectedCollege(foundCollege || null);
     }
-  }, [department, colleges]);
+  }, [department, open]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -700,42 +651,22 @@ const EditDepartment = ({ open, onClose, department, onUpdate }) => {
     setFormData(prev => ({ ...prev, [name]: processedValue }));
   };
 
-  const handleCollegeChange = (event, newValue) => {
-    setSelectedCollege(newValue);
-    setFieldErrors(prev => ({ ...prev, college_id: '' }));
-    setFormData(prev => ({ 
-      ...prev, 
-      college_id: newValue ? newValue.id : '' 
-    }));
-  };
-
   const validateAllFields = () => {
     const errors = {};
     let isValid = true;
-
-    if (!formData.college_id) {
-      errors.college_id = 'College name is required';
-      isValid = false;
-    }
 
     if (!formData.department_name?.trim()) {
       errors.department_name = 'Department name is required';
       isValid = false;
     }
 
-    if (!formData.coordinator_name?.trim()) {
-      errors.coordinator_name = 'Coordinator name is required';
-      isValid = false;
-    }
-
-    if (!formData.coordinator_contact?.trim()) {
-      errors.coordinator_contact = 'Coordinator contact is required';
-      isValid = false;
-    } else if (!validatePhone(formData.coordinator_contact)) {
+    // Coordinator contact validation (optional but validate if provided)
+    if (formData.coordinator_contact && !validatePhone(formData.coordinator_contact)) {
       errors.coordinator_contact = 'Please enter a valid 10-digit mobile number';
       isValid = false;
     }
 
+    // Coordinator email validation (optional but validate if provided)
     if (formData.coordinator_email && !validateEmail(formData.coordinator_email)) {
       errors.coordinator_email = 'Please enter a valid email address';
       isValid = false;
@@ -757,11 +688,10 @@ const EditDepartment = ({ open, onClose, department, onUpdate }) => {
     try {
       const token = localStorage.getItem('token');
       const payload = {
-        college_id: formData.college_id,
         department_name: formData.department_name.trim(),
-        coordinator_name: formData.coordinator_name.trim(),
-        coordinator_contact: formData.coordinator_contact,
-        coordinator_email: formData.coordinator_email.trim() || null
+        coordinator_name: formData.coordinator_name?.trim() || null,
+        coordinator_contact: formData.coordinator_contact || null,
+        coordinator_email: formData.coordinator_email?.trim() || null
       };
 
       const response = await axios.put(`${BASE_URL}/departments/${department.id}`, payload, {
@@ -923,68 +853,6 @@ const EditDepartment = ({ open, onClose, department, onUpdate }) => {
               <Grid size={{ xs: 12 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    COLLEGE NAME <span style={{ color: COLORS.error }}>*</span>
-                  </Typography>
-                  <Autocomplete
-                    fullWidth
-                    options={colleges}
-                    loading={loadingColleges}
-                    value={selectedCollege}
-                    onChange={handleCollegeChange}
-                    getOptionLabel={(option) => option?.name || ''}
-                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
-                    disabled={loading}
-                    renderInput={(params) => {
-                      const { InputLabelProps, InputProps, ...rest } = params;
-                      return (
-                        <TextField
-                          {...rest}
-                          size="small"
-                          placeholder={loadingColleges ? 'Loading colleges...' : 'Search and select college'}
-                          error={!!fieldErrors.college_id}
-                          helperText={fieldErrors.college_id}
-                          sx={textFieldSx}
-                          InputProps={{
-                            ...InputProps,
-                            endAdornment: (
-                              <>
-                                {loadingColleges && <CircularProgress color="inherit" size={16} />}
-                                {InputProps?.endAdornment}
-                              </>
-                            ),
-                          }}
-                        />
-                      );
-                    }}
-                    renderOption={(props, option) => (
-                      <li {...props}>
-                        <Box>
-                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
-                            {option.name}
-                          </Typography>
-                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                            {option.city}, {option.state} - {option.pincode}
-                          </Typography>
-                        </Box>
-                      </li>
-                    )}
-                    ListboxProps={{
-                      sx: {
-                        '& .MuiAutocomplete-option': {
-                          fontSize: '0.75rem',
-                          py: 1,
-                          px: 1.5
-                        }
-                      }
-                    }}
-                    noOptionsText="No colleges found"
-                  />
-                </Box>
-              </Grid>
-
-              <Grid size={{ xs: 12 }}>
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
                     DEPARTMENT NAME <span style={{ color: COLORS.error }}>*</span>
                   </Typography>
                   <TextField
@@ -1005,7 +873,7 @@ const EditDepartment = ({ open, onClose, department, onUpdate }) => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    COORDINATOR NAME <span style={{ color: COLORS.error }}>*</span>
+                    COORDINATOR NAME (Optional)
                   </Typography>
                   <TextField
                     fullWidth
@@ -1025,7 +893,7 @@ const EditDepartment = ({ open, onClose, department, onUpdate }) => {
               <Grid size={{ xs: 12, sm: 6 }}>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: COLORS.text.secondary, letterSpacing: '0.5px' }}>
-                    COORDINATOR CONTACT <span style={{ color: COLORS.error }}>*</span>
+                    COORDINATOR CONTACT (Optional)
                   </Typography>
                   <TextField
                     fullWidth
@@ -1041,7 +909,7 @@ const EditDepartment = ({ open, onClose, department, onUpdate }) => {
                     sx={numberFieldSx}
                   />
                   <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                    10-digit mobile number
+                    10-digit mobile number (optional)
                   </Typography>
                 </Box>
               </Grid>

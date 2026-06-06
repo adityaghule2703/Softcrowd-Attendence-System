@@ -260,13 +260,6 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [uploadedDocuments, setUploadedDocuments] = useState([]);
-
-  useEffect(() => {
-    if (open && batch) {
-      setUploadedDocuments(batch.documents || []);
-    }
-  }, [open, batch]);
 
   const handleFileSelect = (event) => {
     const file = event.target.files[0];
@@ -299,18 +292,18 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
       });
 
       if (response.data && response.data.message) {
-        if (response.data.document) {
-          setUploadedDocuments(prev => [...prev, response.data.document]);
-        }
-        
+        // Reset the form
         setSelectedFile(null);
-        if (onUploadComplete) {
-          onUploadComplete(batch.id);
-        }
         const fileInput = document.getElementById('file-upload-input');
         if (fileInput) fileInput.value = '';
         
-        setError('');
+        // Call the onUploadComplete callback
+        if (onUploadComplete) {
+          onUploadComplete(batch.id);
+        }
+        
+        // Close the modal after successful upload
+        onClose();
       } else {
         throw new Error('Invalid response from server');
       }
@@ -320,37 +313,6 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
       setError(errorMessage);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleDownload = async (document) => {
-    try {
-      if (document.file_url) {
-        window.open(document.file_url, '_blank');
-      }
-    } catch (err) {
-      console.error('Error downloading document:', err);
-      setError('Failed to download document');
-    }
-  };
-
-  const handleDeleteDocument = async (documentId) => {
-    if (!window.confirm('Are you sure you want to delete this document?')) return;
-    
-    try {
-      const token = localStorage.getItem('token');
-      await axios.delete(`${BASE_URL}/batches/documents/${documentId}`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      setUploadedDocuments(prev => prev.filter(doc => doc.id !== documentId));
-      
-      if (onUploadComplete) {
-        onUploadComplete(batch.id);
-      }
-    } catch (err) {
-      console.error('Error deleting document:', err);
-      setError('Failed to delete document');
     }
   };
 
@@ -371,7 +333,7 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
     <Dialog 
       open={open} 
       onClose={onClose}
-      maxWidth="md"
+      maxWidth="sm"
       fullWidth
       PaperProps={{
         sx: {
@@ -393,7 +355,7 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
         <Stack direction="row" spacing={1.5} alignItems="center">
           <UploadIcon />
           <Typography sx={{ fontSize: '1rem', fontWeight: 600 }}>
-            Upload Documents - {batch?.name}
+            Upload Document - {batch?.name}
           </Typography>
         </Stack>
         <IconButton onClick={onClose} size="small" sx={{ color: COLORS.text.light }}>
@@ -402,7 +364,7 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
       </DialogTitle>
       
       <DialogContent sx={{ pt: 3 }}>
-        <Stack spacing={3}>
+        <Stack spacing={2}>
           <Paper sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
             <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.accent, mb: 1.5 }}>
               Upload New Document
@@ -467,69 +429,6 @@ const UploadDocumentsDialog = ({ open, onClose, batch, onUploadComplete }) => {
               </Button>
             </Stack>
           </Paper>
-
-          <Paper sx={{ p: 2, borderRadius: 1.5, border: `1px solid ${COLORS.border}` }}>
-            <Typography sx={{ fontSize: '0.8rem', fontWeight: 600, color: COLORS.accent, mb: 1.5 }}>
-              Uploaded Documents ({uploadedDocuments.length})
-            </Typography>
-            
-            {uploadedDocuments.length === 0 ? (
-              <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.tertiary, textAlign: 'center', py: 3 }}>
-                No documents uploaded yet
-              </Typography>
-            ) : (
-              <List sx={{ width: '100%', bgcolor: COLORS.background.white }}>
-                {uploadedDocuments.map((doc, index) => (
-                  <MuiListItem
-                    key={doc.id}
-                    divider={index < uploadedDocuments.length - 1}
-                    sx={{
-                      py: 1.5,
-                      '&:hover': {
-                        bgcolor: COLORS.background.hover
-                      }
-                    }}
-                    secondaryAction={
-                      <Stack direction="row" spacing={1}>
-                        <IconButton 
-                          edge="end" 
-                          onClick={() => handleDownload(doc)}
-                          sx={{ color: COLORS.accent }}
-                          size="small"
-                        >
-                          <DownloadIcon fontSize="small" />
-                        </IconButton>
-                        <IconButton 
-                          edge="end" 
-                          onClick={() => handleDeleteDocument(doc.id)}
-                          sx={{ color: '#EF4444' }}
-                          size="small"
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      </Stack>
-                    }
-                  >
-                    <MuiListItemIcon>
-                      {getFileIcon(doc.file_type)}
-                    </MuiListItemIcon>
-                    <MuiListItemText
-                      primary={
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 500, color: COLORS.text.primary }}>
-                          {doc.file_name}
-                        </Typography>
-                      }
-                      secondary={
-                        <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                          Type: {doc.file_type?.toUpperCase() || 'Unknown'}
-                        </Typography>
-                      }
-                    />
-                  </MuiListItem>
-                ))}
-              </List>
-            )}
-          </Paper>
         </Stack>
       </DialogContent>
       
@@ -565,9 +464,17 @@ const QRViewDialog = ({ open, onClose, qrData, batchName }) => {
       }}>
         QR Code - {batchName}
       </DialogTitle>
-      <DialogContent sx={{ py: 4, textAlign: 'center' }}>
+      <DialogContent 
+        sx={{ 
+          py: 4, 
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
         {qrData && (
-          <Stack spacing={3} alignItems="center">
+          <>
             <Box
               component="img"
               src={qrData.qr_image_url}
@@ -578,37 +485,28 @@ const QRViewDialog = ({ open, onClose, qrData, batchName }) => {
                 border: `2px solid ${COLORS.border}`,
                 borderRadius: 2,
                 p: 2,
-                mx: 'auto'
+                mx: 'auto',
+                display: 'block'
               }}
             />
-            <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
-              Expires at: {new Date(qrData.expires_at).toLocaleString()}
-            </Typography>
-            <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
-              Remaining time: {Math.floor(qrData.remaining_time / 60)} minutes {Math.floor(qrData.remaining_time % 60)} seconds
-            </Typography>
-            <Button
-              variant="outlined"
-              size="small"
-              startIcon={<DownloadIcon />}
-              onClick={() => window.open(qrData.qr_image_url, '_blank')}
-              sx={{
-                mt: 1,
-                fontSize: '0.75rem',
-                borderColor: COLORS.accent,
-                color: COLORS.accent,
-                '&:hover': {
-                  borderColor: COLORS.primary,
-                  bgcolor: `${COLORS.accent}10`
-                }
-              }}
-            >
-              Download QR Code
-            </Button>
-          </Stack>
+            <Box sx={{ mt: 3, textAlign: 'center' }}>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
+                Expires at: {new Date(qrData.expires_at).toLocaleString()}
+              </Typography>
+              <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 0.5 }}>
+                Remaining time: {Math.floor(qrData.remaining_time / 60)} minutes {Math.floor(qrData.remaining_time % 60)} seconds
+              </Typography>
+            </Box>
+          </>
         )}
       </DialogContent>
-      <DialogActions sx={{ borderTop: `1px solid ${COLORS.border}`, p: 2, justifyContent: 'center' }}>
+      <DialogActions sx={{ 
+        borderTop: `1px solid ${COLORS.border}`, 
+        p: 2, 
+        justifyContent: 'center',
+        display: 'flex',
+        alignItems: 'center'
+      }}>
         <Button 
           onClick={onClose}
           sx={{

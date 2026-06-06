@@ -1494,7 +1494,7 @@ const DepartmentManagement = () => {
           {/* Search */}
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
             <TextField
-              placeholder="Search by college, department, or coordinator..."
+              placeholder="Search by department or coordinator..."
               size="small"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -1642,14 +1642,6 @@ const DepartmentManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  College Name
-                </TableCell>
-                <TableCell sx={{ 
-                  fontWeight: 600, 
-                  fontSize: '0.7rem',
-                  letterSpacing: '0.5px',
-                  color: COLORS.text.light
-                }}>
                   Coordinator Name
                 </TableCell>
                 <TableCell sx={{ 
@@ -1674,7 +1666,7 @@ const DepartmentManagement = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={canDelete ? 6 : 5} align="center" sx={{ py: 6 }}>
+                  <TableCell colSpan={canDelete ? 5 : 4} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
                       Loading departments...
@@ -1684,7 +1676,7 @@ const DepartmentManagement = () => {
               ) : departments.length === 0 ? (
                 <TableRow>
                   <TableCell 
-                    colSpan={canDelete ? 6 : 5} 
+                    colSpan={canDelete ? 5 : 4} 
                     align="center" 
                     sx={{ 
                       py: 6,
@@ -1755,7 +1747,7 @@ const DepartmentManagement = () => {
                         </TableCell>
                       )}
                       
-                      {/* Department Name Column - NOW FIRST */}
+                      {/* Department Name Column */}
                       <TableCell>
                         <Stack direction="row" spacing={1.5} alignItems="center">
                           <Avatar 
@@ -1777,36 +1769,30 @@ const DepartmentManagement = () => {
                         </Stack>
                       </TableCell>
 
-                      {/* College Name Column - NOW SECOND */}
-                      <TableCell>
-                        <Stack direction="row" spacing={1.5} alignItems="center">
-                          <SchoolIcon sx={{ fontSize: 14, color: COLORS.text.tertiary }} />
-                          <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                            {department.collegeName}
-                          </Typography>
-                        </Stack>
-                      </TableCell>
-
-                      {/* Coordinator Name Column */}
+                      {/* Coordinator Name Column - Show N/A if empty */}
                       <TableCell>
                         <Stack direction="row" spacing={1} alignItems="center">
                           <PersonIcon sx={{ fontSize: 14, color: COLORS.text.tertiary }} />
                           <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                            {department.coordinatorName}
+                            {department.coordinatorName && department.coordinatorName.trim() !== '' 
+                              ? department.coordinatorName 
+                              : 'N/A'}
                           </Typography>
                         </Stack>
                       </TableCell>
 
-                      {/* Coordinator Contact Column */}
+                      {/* Coordinator Contact Column - Show N/A if empty */}
                       <TableCell>
                         <Stack spacing={0.5}>
                           <Stack direction="row" spacing={1} alignItems="center">
                             <PhoneIcon sx={{ fontSize: 14, color: COLORS.text.tertiary }} />
                             <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                              {department.coordinatorContact}
+                              {department.coordinatorContact && department.coordinatorContact.trim() !== '' 
+                                ? department.coordinatorContact 
+                                : 'N/A'}
                             </Typography>
                           </Stack>
-                          {department.coordinatorEmail && (
+                          {department.coordinatorEmail && department.coordinatorEmail.trim() !== '' && (
                             <Stack direction="row" spacing={1} alignItems="center">
                               <EmailIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
                               <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>

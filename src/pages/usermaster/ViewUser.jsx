@@ -58,7 +58,7 @@ const COLORS = {
 // All available actions
 const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
-// All possible pages/modules - This ensures ALL pages are shown
+// All possible pages/modules - This ensures ALL pages are shown (TRAINERS removed)
 const ALL_PAGES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
   { module: 'DEPARTMENT_MANAGEMENT', page: 'Department Management', category: 'Masters' },
@@ -67,7 +67,7 @@ const ALL_PAGES = [
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  // TRAINERS module removed
   { module: 'ATTENDANCE', page: 'Attendance', category: 'Transactions' },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'Administration' },
   { module: 'USERS', page: 'Users', category: 'Administration' },

@@ -5,6 +5,7 @@ import { Outlet } from "react-router-dom";
 
 const Layout = () => {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [sidebarMenuItems, setSidebarMenuItems] = useState([]);
 
   useEffect(() => {
     if (isMobileSidebarOpen) {
@@ -23,17 +24,26 @@ const Layout = () => {
     };
   }, [isMobileSidebarOpen]);
 
+  // This function receives the filtered menu items from Sidebar
+  const handleMenuItemsLoad = (items) => {
+    setSidebarMenuItems(items);
+  };
+
   return (
     <div style={{ background: '#F8FAFC' }}>
-      <Header onMenuClick={() => setIsMobileSidebarOpen(true)} />
+      <Header 
+        onMenuClick={() => setIsMobileSidebarOpen(true)} 
+        sidebarMenuItems={sidebarMenuItems}
+      />
 
       {/* Desktop Sidebar */}
-      <Sidebar />
+      <Sidebar onMenuItemsLoad={handleMenuItemsLoad} />
 
       {/* Mobile Sidebar Drawer */}
       <Sidebar
         isMobileOpen={isMobileSidebarOpen}
         onClose={() => setIsMobileSidebarOpen(false)}
+        onMenuItemsLoad={handleMenuItemsLoad}
       />
 
       {/* Main Content */}

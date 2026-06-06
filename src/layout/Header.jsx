@@ -4,16 +4,22 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import BASE_URL from "../config/Config";
 
-const Header = ({ onMenuClick }) => {
+const Header = ({ onMenuClick, sidebarMenuItems = [] }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [showSearchDropdown, setShowSearchDropdown] = useState(false);
+  const [selectedSearchIndex, setSelectedSearchIndex] = useState(-1);
 
   const profileRef = useRef(null);
   const notificationRef = useRef(null);
+  const searchInputRef = useRef(null);
+  const searchDropdownRef = useRef(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -43,14 +49,100 @@ const Header = ({ onMenuClick }) => {
     fetchUserData();
   }, [navigate]);
 
+  // Click outside handler
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (profileRef.current && !profileRef.current.contains(event.target)) setIsProfileOpen(false);
-      if (notificationRef.current && !notificationRef.current.contains(event.target)) setIsNotificationsOpen(false);
+      if (profileRef.current && !profileRef.current.contains(event.target)) {
+        setIsProfileOpen(false);
+      }
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setIsNotificationsOpen(false);
+      }
+      if (searchInputRef.current && !searchInputRef.current.contains(event.target) &&
+          searchDropdownRef.current && !searchDropdownRef.current.contains(event.target)) {
+        setShowSearchDropdown(false);
+        setSelectedSearchIndex(-1);
+      }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Global search function - matches any page containing the search term
+  const performGlobalSearch = (query) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearchDropdown(false);
+      return;
+    }
+
+    const searchTerm = query.toLowerCase().trim();
+    const results = sidebarMenuItems.filter(item => 
+      item.name.toLowerCase().includes(searchTerm)
+    );
+    
+    setSearchResults(results.slice(0, 10));
+    setShowSearchDropdown(results.length > 0);
+    setSelectedSearchIndex(-1);
+  };
+
+  const handleSearchChange = (e) => {
+    const value = e.target.value;
+    setSearchQuery(value);
+    performGlobalSearch(value);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (searchResults.length === 0) return;
+
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        setSelectedSearchIndex(prev => 
+          prev < searchResults.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        setSelectedSearchIndex(prev => prev > 0 ? prev - 1 : -1);
+        break;
+      case 'Enter':
+        e.preventDefault();
+        if (selectedSearchIndex >= 0 && searchResults[selectedSearchIndex]) {
+          handleSearchResultClick(searchResults[selectedSearchIndex]);
+        } else if (searchResults.length > 0) {
+          handleSearchResultClick(searchResults[0]);
+        }
+        break;
+      case 'Escape':
+        setShowSearchDropdown(false);
+        setSearchResults([]);
+        setSearchQuery('');
+        break;
+    }
+  };
+
+  const handleSearchResultClick = (result) => {
+    navigate(result.path);
+    setSearchQuery('');
+    setSearchResults([]);
+    setShowSearchDropdown(false);
+    setSelectedSearchIndex(-1);
+    setIsSearchOpen(false);
+  };
+
+  // Highlight matching text in search results
+  const highlightText = (text, searchTerm) => {
+    if (!searchTerm) return text;
+    const parts = text.split(new RegExp(`(${searchTerm})`, 'gi'));
+    return parts.map((part, i) => 
+      part.toLowerCase() === searchTerm.toLowerCase() ? 
+        <mark key={i} className="bg-[#00AEED20] text-[#00AEED] px-0.5 rounded font-medium">
+          {part}
+        </mark> : 
+        part
+    );
+  };
 
   const notifications = [
     { id: 1, title: "New user registered", time: "2 min ago", read: false },
@@ -97,7 +189,6 @@ const Header = ({ onMenuClick }) => {
 
   if (loading) {
     return (
-      // ↓ z-50 so header is always above sidebar backdrop (z-40)
       <header className="fixed top-0 left-0 right-0 h-16 z-50 backdrop-blur-xl" style={{ background: 'rgba(255, 255, 255, 0.95)', borderBottom: '1px solid rgba(0, 174, 237, 0.2)' }}>
         <div className="h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -114,7 +205,6 @@ const Header = ({ onMenuClick }) => {
 
   return (
     <>
-      {/* ↓ z-50 so header is always above sidebar backdrop (z-40) */}
       <header className="fixed top-0 left-0 right-0 h-16 z-50 backdrop-blur-xl" style={{ background: 'rgba(255, 255, 255, 0.95)', borderBottom: '1px solid rgba(0, 174, 237, 0.2)' }}>
         <div className="h-full px-4 sm:px-6 lg:px-8 flex items-center justify-between">
 
@@ -128,7 +218,7 @@ const Header = ({ onMenuClick }) => {
           </button>
 
           {/* Logo */}
-          <img src="src/assets/images/softcrowd-logo.png" className="h-8 sm:h-10 w-auto" alt="Logo" />
+          <img src="./softcrowd-logo.png" className="h-8 sm:h-10 w-auto" alt="Logo" />
 
           {/* Mobile Search Button */}
           <button
@@ -138,23 +228,112 @@ const Header = ({ onMenuClick }) => {
             <Search className="w-5 h-5" style={{ color: '#00AEED' }} />
           </button>
 
-          {/* Desktop Search Bar */}
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: '#F5F7FA', border: '1px solid #E2E8F0' }}>
-            <Search className="w-4 h-4" style={{ color: '#00AEED' }} />
-            <input
-              type="text"
-              placeholder="Search anything..."
-              className="bg-transparent text-sm outline-none w-64 lg:w-80"
-              style={{ color: '#1A1A2E' }}
-            />
-            <span className="text-xs px-2 py-0.5 rounded-md" style={{ background: '#FFFFFF', color: '#94A3B8' }}>⌘K</span>
+          {/* Desktop Search Box with Dropdown */}
+          <div className="hidden md:block relative" ref={searchInputRef}>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="w-4 h-4" style={{ color: '#94A3B8' }} />
+              </div>
+              <input
+                type="text"
+                placeholder="Search pages..."
+                className="w-80 pl-10 pr-4 py-2 rounded-lg text-sm outline-none"
+                style={{ 
+                  background: '#F5F7FA', 
+                  border: '1px solid #E2E8F0',
+                  color: '#1A1A2E'
+                }}
+                value={searchQuery}
+                onChange={handleSearchChange}
+                onKeyDown={handleSearchKeyDown}
+                onFocus={() => searchQuery.trim() && setShowSearchDropdown(true)}
+              />
+              {searchQuery && (
+                <button 
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSearchResults([]);
+                    setShowSearchDropdown(false);
+                  }}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <X className="w-4 h-4" style={{ color: '#94A3B8' }} />
+                </button>
+              )}
+            </div>
+
+            {/* Search Results Dropdown */}
+            {showSearchDropdown && searchResults.length > 0 && (
+              <div 
+                ref={searchDropdownRef}
+                className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border overflow-hidden z-50"
+                style={{ borderColor: '#E5E7EB', maxHeight: '400px', overflowY: 'auto' }}
+              >
+                <div className="px-4 py-2 border-b" style={{ borderColor: '#E5E7EB', background: '#F8FAFC' }}>
+                  <span className="text-xs font-medium" style={{ color: '#64748B' }}>
+                    Search Results ({searchResults.length})
+                  </span>
+                </div>
+                {searchResults.map((result, index) => (
+                  <button
+                    key={result.path}
+                    onClick={() => handleSearchResultClick(result)}
+                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 border-b last:border-0 ${
+                      index === selectedSearchIndex ? 'bg-gray-50' : ''
+                    }`}
+                    style={{ borderColor: '#F1F5F9' }}
+                    onMouseEnter={() => setSelectedSearchIndex(index)}
+                  >
+                    <div className="p-1.5 rounded-lg flex-shrink-0" style={{ background: '#F0F9FF' }}>
+                      {result.icon && <result.icon className="w-4 h-4" style={{ color: '#00AEED' }} />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium" style={{ color: '#1E293B' }}>
+                        {highlightText(result.name, searchQuery)}
+                      </p>
+                      {result.description && (
+                        <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>
+                          {result.description}
+                        </p>
+                      )}
+                    </div>
+                    <svg className="w-4 h-4 flex-shrink-0" style={{ color: '#94A3B8' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ))}
+                <div className="px-4 py-2 border-t" style={{ borderColor: '#E5E7EB', background: '#F8FAFC' }}>
+                  <div className="flex items-center justify-between text-xs" style={{ color: '#94A3B8' }}>
+                    <span>↑↓ Navigate</span>
+                    <span>↵ Select</span>
+                    <span>Esc Close</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* No Results State */}
+            {showSearchDropdown && searchQuery.trim() !== "" && searchResults.length === 0 && (
+              <div 
+                className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-lg border overflow-hidden z-50"
+                style={{ borderColor: '#E5E7EB' }}
+              >
+                <div className="px-4 py-8 text-center">
+                  <Search className="w-8 h-8 mx-auto mb-2" style={{ color: '#CBD5E1' }} />
+                  <p className="text-sm font-medium" style={{ color: '#64748B' }}>No pages found</p>
+                  <p className="text-xs mt-1" style={{ color: '#94A3B8' }}>
+                    No results found for "{searchQuery}"
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Right Section */}
           <div className="flex items-center gap-2 sm:gap-4">
 
             {/* Notifications */}
-            <div className="relative" ref={notificationRef}>
+            {/* <div className="relative" ref={notificationRef}>
               <button
                 onClick={() => setIsNotificationsOpen(!isNotificationsOpen)}
                 className="relative p-2 rounded-full transition-all duration-300 hover:scale-110"
@@ -188,12 +367,12 @@ const Header = ({ onMenuClick }) => {
                   </div>
                 </div>
               )}
-            </div>
+            </div> */}
 
-            {/* Settings */}
-            <button className="hidden sm:block p-2 rounded-full transition-all duration-300 hover:scale-110" style={{ background: '#F5F7FA' }}>
+            {/* Settings Button */}
+            {/* <button className="hidden sm:block p-2 rounded-full transition-all duration-300 hover:scale-110" style={{ background: '#F5F7FA' }}>
               <Settings className="w-5 h-5" style={{ color: '#1A1A2E' }} />
-            </button>
+            </button> */}
 
             {/* Profile */}
             <div className="relative" ref={profileRef}>
@@ -252,19 +431,67 @@ const Header = ({ onMenuClick }) => {
 
         {/* Mobile Search Overlay */}
         {isSearchOpen && (
-          <div className="fixed top-16 left-0 right-0 bg-white p-4 shadow-lg z-20 md:hidden" style={{ borderBottom: '1px solid #E5E7EB' }}>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: '#F5F7FA', border: '1px solid #E2E8F0' }}>
-              <Search className="w-4 h-4" style={{ color: '#00AEED' }} />
-              <input
-                type="text"
-                placeholder="Search anything..."
-                className="flex-1 bg-transparent text-sm outline-none"
-                style={{ color: '#1A1A2E' }}
-                autoFocus
-              />
-              <button onClick={() => setIsSearchOpen(false)}>
-                <X className="w-4 h-4" style={{ color: '#94A3B8' }} />
-              </button>
+          <div className="fixed top-16 left-0 right-0 bg-white shadow-lg z-20 md:hidden" style={{ borderBottom: '1px solid #E5E7EB' }}>
+            <div className="relative p-4">
+              <div className="flex items-center gap-2 px-4 py-2 rounded-full" style={{ background: '#F5F7FA', border: '1px solid #E2E8F0' }}>
+                <Search className="w-4 h-4" style={{ color: '#00AEED' }} />
+                <input
+                  type="text"
+                  placeholder="Search pages..."
+                  className="flex-1 bg-transparent text-sm outline-none"
+                  style={{ color: '#1A1A2E' }}
+                  autoFocus
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onKeyDown={handleSearchKeyDown}
+                />
+                <button onClick={() => {
+                  setIsSearchOpen(false);
+                  setSearchQuery("");
+                  setSearchResults([]);
+                }}>
+                  <X className="w-4 h-4" style={{ color: '#94A3B8' }} />
+                </button>
+              </div>
+
+              {/* Mobile Search Results */}
+              {searchQuery.trim() !== "" && (
+                <div className="mt-2 max-h-96 overflow-y-auto">
+                  {searchResults.length > 0 ? (
+                    searchResults.map((result) => (
+                      <button
+                        key={result.path}
+                        onClick={() => {
+                          handleSearchResultClick(result);
+                          setIsSearchOpen(false);
+                        }}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-3 border-b"
+                        style={{ borderColor: '#F1F5F9' }}
+                      >
+                        <div className="p-1.5 rounded-lg flex-shrink-0" style={{ background: '#F0F9FF' }}>
+                          {result.icon && <result.icon className="w-4 h-4" style={{ color: '#00AEED' }} />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium" style={{ color: '#1E293B' }}>
+                            {highlightText(result.name, searchQuery)}
+                          </p>
+                          {result.description && (
+                            <p className="text-xs mt-0.5" style={{ color: '#64748B' }}>{result.description}</p>
+                          )}
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-4 py-8 text-center">
+                      <Search className="w-8 h-8 mx-auto mb-2" style={{ color: '#CBD5E1' }} />
+                      <p className="text-sm font-medium" style={{ color: '#64748B' }}>No pages found</p>
+                      <p className="text-xs mt-1" style={{ color: '#94A3B8' }}>
+                        No results found for "{searchQuery}"
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

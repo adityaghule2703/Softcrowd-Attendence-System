@@ -73,20 +73,31 @@ const DeleteHoliday = ({ open, onClose, holiday, onDelete }) => {
         }
       });
 
-      // Check if delete was successful (status 200, 201, 204)
-      if (response.status === 200 || response.status === 201 || response.status === 204) {
-        // Call the onDelete callback with the holiday ID
+      // Check if the request was successful (status in 2xx range)
+      // This is more robust than checking specific status codes
+      if (response.status >= 200 && response.status < 300) {
+        // Success - call the onDelete callback with the holiday ID
         onDelete(holiday.id);
         onClose();
       } else {
-        throw new Error('Failed to delete holiday');
+        throw new Error(response.data?.message || 'Failed to delete holiday');
       }
     } catch (err) {
       console.error('Error deleting holiday:', err);
-      const errorMessage = err.response?.data?.message || 
-                          err.response?.data?.error ||
-                          'Failed to delete holiday. Please try again.';
-      setError(errorMessage);
+      // Only show error if it's not a successful response
+      // The error might be caught even on success if response structure is unexpected
+      if (err.response && err.response.status >= 200 && err.response.status < 300) {
+        // This is actually a success! Call onDelete anyway
+        console.log('Delete was successful despite error catch');
+        onDelete(holiday.id);
+        onClose();
+      } else {
+        const errorMessage = err.response?.data?.message || 
+                            err.response?.data?.error ||
+                            err.message ||
+                            'Failed to delete holiday. Please try again.';
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

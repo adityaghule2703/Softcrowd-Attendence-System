@@ -50,7 +50,7 @@ const COLORS = {
 // All available actions
 const ALL_ACTIONS = ['VIEW', 'CREATE', 'UPDATE', 'DELETE'];
 
-// All modules/pages based on the API response structure
+// All modules/pages based on the API response structure (TRAINERS removed)
 const ALL_MODULES = [
   { module: 'DASHBOARD', page: 'Dashboard', category: 'Dashboard' },
   { module: 'USER_MANAGEMENT', page: 'User Management', category: 'User Management' },
@@ -61,7 +61,7 @@ const ALL_MODULES = [
   { module: 'HOLIDAY_MANAGEMENT', page: 'Holiday Management', category: 'Masters' },
   { module: 'BATCH_MANAGEMENT', page: 'Batch Management', category: 'Masters' },
   { module: 'STUDENT_MANAGEMENT', page: 'Student Management', category: 'Masters' },
-  { module: 'TRAINERS', page: 'Trainers', category: 'Masters' },
+  // TRAINERS module removed
   { module: 'COLLEGE_MANAGEMENT', page: 'College Management', category: 'Masters' },
   { module: 'ATTENDANCE', page: 'Attendance', category: 'Operations' },
   { module: 'REPORTS', page: 'Reports', category: 'Operations' }

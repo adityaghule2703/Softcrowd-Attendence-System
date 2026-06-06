@@ -1,3 +1,4 @@
+// NotificationManagement.jsx
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
@@ -26,7 +27,10 @@ import {
   Divider,
   Alert,
   CircularProgress,
-  Snackbar
+  Snackbar,
+  Tab,
+  Tabs,
+  Badge
 } from '@mui/material';
 import {
   Search as SearchIcon,
@@ -36,22 +40,26 @@ import {
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
   Refresh as RefreshIcon,
-  Business as BusinessIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
-  School as SchoolIcon
+  Notifications as NotificationsIcon,
+  Send as SendIcon,
+  CheckCircle as CheckCircleIcon,
+  Markunread as MarkunreadIcon,
+  Group as GroupIcon,
+  Article as ArticleIcon,
+  NotificationsActive as PushIcon
 } from '@mui/icons-material';
 import axios from 'axios';
 import BASE_URL from '../../config/Config';
 import { ACTIONS, hasPermission, MODULES, PAGES } from '../../utils/modulePermissions';
 
 // Import modal components
-import AddCollege from './AddCollege';
-import EditCollege from './EditCollege';
-import ViewCollege from './ViewCollege';
-import DeleteCollege from './DeleteCollege';
+import SendNotification from './SendNotification';
+import BulkSendNotification from './BulkSendNotification';
+import ViewNotification from './ViewNotification';
+import EditNotification from './EditNotification';
+import DeleteNotification from './DeleteNotification';
 
-// Color constants - Using sidebar background color (#0F172A)
+// Color constants
 const COLORS = {
   primary: '#0F172A',
   primaryLight: '#1E293B',
@@ -82,7 +90,7 @@ const LoadingState = () => (
 // Access Denied component
 const AccessDenied = () => (
   <Box sx={{ p: 4, textAlign: 'center' }}>
-    <BusinessIcon sx={{ fontSize: 64, color: COLORS.text.tertiary, mb: 2 }} />
+    <NotificationsIcon sx={{ fontSize: 64, color: COLORS.text.tertiary, mb: 2 }} />
     <Typography variant="h6" sx={{ color: COLORS.text.primary, mb: 1, fontWeight: 600 }}>
       Access Denied
     </Typography>
@@ -93,7 +101,7 @@ const AccessDenied = () => (
 );
 
 // Action Menu Component with permission checks
-const ActionMenu = ({ college, onView, onEdit, onDelete, canView, canUpdate, canDelete: canDeletePermission }) => {
+const ActionMenu = ({ notification, onView, onEdit, onDelete, canView, canUpdate, canDelete: canDeletePermission }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
 
@@ -105,7 +113,6 @@ const ActionMenu = ({ college, onView, onEdit, onDelete, canView, canUpdate, can
     setAnchorEl(null);
   };
 
-  // Check if there's ANY action available (including VIEW)
   const hasAnyAction = canView || canUpdate || canDeletePermission;
 
   if (!hasAnyAction) {
@@ -143,11 +150,10 @@ const ActionMenu = ({ college, onView, onEdit, onDelete, canView, canUpdate, can
           }
         }}
       >
-        {/* View Details - Always show if user has VIEW permission */}
         {canView && (
           <MenuItem 
             onClick={() => {
-              onView(college);
+              onView(notification);
               handleClose();
             }}
             sx={{ py: 1.5 }}
@@ -163,11 +169,10 @@ const ActionMenu = ({ college, onView, onEdit, onDelete, canView, canUpdate, can
           </MenuItem>
         )}
         
-        {/* Edit - Only show if user has UPDATE permission */}
         {canUpdate && (
           <MenuItem 
             onClick={() => {
-              onEdit(college);
+              onEdit(notification);
               handleClose();
             }}
             sx={{ py: 1.5 }}
@@ -183,16 +188,14 @@ const ActionMenu = ({ college, onView, onEdit, onDelete, canView, canUpdate, can
           </MenuItem>
         )}
         
-        {/* Divider - Only show if there are multiple sections */}
         {((canView && (canUpdate || canDeletePermission)) || (canUpdate && canDeletePermission)) && (
           <Divider sx={{ my: 0.5, borderColor: COLORS.border }} />
         )}
         
-        {/* Delete - Only show if user has DELETE permission */}
         {canDeletePermission && (
           <MenuItem 
             onClick={() => {
-              onDelete(college);
+              onDelete(notification);
               handleClose();
             }}
             sx={{ py: 1.5 }}
@@ -212,8 +215,8 @@ const ActionMenu = ({ college, onView, onEdit, onDelete, canView, canUpdate, can
   );
 };
 
-const CollegeManagement = () => {
-  const [colleges, setColleges] = useState([]);
+const NotificationManagement = () => {
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -225,6 +228,7 @@ const CollegeManagement = () => {
     message: '',
     severity: 'success'
   });
+  const [tabValue, setTabValue] = useState(0);
 
   // Server-side pagination states
   const [totalCount, setTotalCount] = useState(0);
@@ -237,11 +241,12 @@ const CollegeManagement = () => {
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
 
   // Modal states
-  const [openAddModal, setOpenAddModal] = useState(false);
-  const [openEditModal, setOpenEditModal] = useState(false);
+  const [openSendModal, setOpenSendModal] = useState(false);
+  const [openBulkSendModal, setOpenBulkSendModal] = useState(false);
   const [openViewModal, setOpenViewModal] = useState(false);
+  const [openEditModal, setOpenEditModal] = useState(false);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
-  const [selectedCollege, setSelectedCollege] = useState(null);
+  const [selectedNotification, setSelectedNotification] = useState(null);
 
   // Fetch user permissions from API
   useEffect(() => {
@@ -271,7 +276,7 @@ const CollegeManagement = () => {
   // Helper to check permission
   const checkPermission = (action) => {
     if (isSuperAdmin) return true;
-    return hasPermission(userPermissions, MODULES.COLLEGE_MANAGEMENT, PAGES.COLLEGE_MANAGEMENT, action);
+    return hasPermission(userPermissions, MODULES.NOTIFICATION_MANAGEMENT, PAGES.NOTIFICATION_MANAGEMENT, action);
   };
 
   // Permission checks
@@ -280,8 +285,8 @@ const CollegeManagement = () => {
   const canUpdate = checkPermission(ACTIONS.UPDATE);
   const canDelete = checkPermission(ACTIONS.DELETE);
 
-  // Load colleges from API with pagination and search
-  const loadCollegesFromAPI = useCallback(async () => {
+  // Load notifications from API
+  const loadNotificationsFromAPI = useCallback(async () => {
     if (!canView && !isSuperAdmin) return;
     
     setLoading(true);
@@ -290,10 +295,11 @@ const CollegeManagement = () => {
       const params = {
         page: currentPage,
         per_page: rowsPerPage,
-        search: searchTerm
+        search: searchTerm,
+        is_read: tabValue === 1 ? false : (tabValue === 2 ? true : undefined)
       };
       
-      const response = await axios.get(`${BASE_URL}/colleges`, {
+      const response = await axios.get(`${BASE_URL}/admin/notifications`, {
         headers: {
           'Authorization': `Bearer ${token}`
         },
@@ -301,45 +307,44 @@ const CollegeManagement = () => {
       });
 
       if (response.data && response.data.data) {
-        const transformedColleges = response.data.data.map(college => ({
-          id: college.id,
-          name: college.name,
-          department_name: college.department_name,
-          address: college.address,
-          city: college.city,
-          state: college.state,
-          pincode: college.pincode,
-          contact: college.contact_number,
-          email: college.email,
-          createdAt: college.created_at,
-          updatedAt: college.updated_at
+        const transformedNotifications = response.data.data.data.map(notif => ({
+          id: notif.id,
+          studentId: notif.student_id,
+          studentName: notif.student?.name || 'N/A',
+          studentEmail: notif.student?.email || 'N/A',
+          batchId: notif.batch_id,
+          batchName: notif.batch?.name || 'N/A',
+          title: notif.title,
+          message: notif.message,
+          isRead: notif.is_read,
+          createdAt: notif.created_at
         }));
         
-        setColleges(transformedColleges);
-        setTotalCount(response.data.total || 0);
-        setLastPage(response.data.last_page || 1);
+        setNotifications(transformedNotifications);
+        setTotalCount(response.data.data.total || 0);
+        setLastPage(response.data.data.last_page || 1);
       } else {
-        setColleges([]);
+        setNotifications([]);
         setTotalCount(0);
         setLastPage(1);
       }
     } catch (error) {
-      console.error('Error loading colleges:', error);
-      showNotification(error.response?.data?.message || 'Failed to load colleges', 'error');
-      setColleges([]);
+      console.error('Error loading notifications:', error);
+      showNotification(error.response?.data?.message || 'Failed to load notifications', 'error');
+      setNotifications([]);
       setTotalCount(0);
       setLastPage(1);
     } finally {
       setLoading(false);
     }
-  }, [currentPage, rowsPerPage, searchTerm, canView, isSuperAdmin]);
+  }, [currentPage, rowsPerPage, searchTerm, tabValue, canView, isSuperAdmin]);
 
-  // Load colleges when dependencies change
+  // Load notifications when dependencies change
   useEffect(() => {
     if (permissionsLoaded && (canView || isSuperAdmin)) {
-      loadCollegesFromAPI();
+      loadNotificationsFromAPI();
     }
-  }, [loadCollegesFromAPI, permissionsLoaded, canView, isSuperAdmin]);
+  }, [loadNotificationsFromAPI, permissionsLoaded, canView, isSuperAdmin]);
 
   // Debounce search
   useEffect(() => {
@@ -352,62 +357,43 @@ const CollegeManagement = () => {
     return () => clearTimeout(timer);
   }, [searchInput]);
 
-  // Handle add college
-  const handleAddCollege = (newCollege) => {
-    if (currentPage === 1 && colleges.length < rowsPerPage) {
-      const transformedCollege = {
-        id: newCollege.id,
-        name: newCollege.name,
-        department_name: newCollege.department_name,
-        address: newCollege.address,
-        city: newCollege.city,
-        state: newCollege.state,
-        pincode: newCollege.pincode,
-        contact: newCollege.contact_number,
-        email: newCollege.email,
-        createdAt: newCollege.created_at,
-        updatedAt: newCollege.updated_at
-      };
-      setColleges(prev => [transformedCollege, ...prev]);
-    }
-    loadCollegesFromAPI();
-    showNotification('College added successfully!', 'success');
+  // Handle tab change
+  const handleTabChange = (event, newValue) => {
+    setTabValue(newValue);
+    setCurrentPage(1);
+    setPage(0);
+    setSelected([]);
   };
 
-  // Handle edit college
-  const handleEditCollege = (updatedCollege) => {
-    const transformedCollege = {
-      id: updatedCollege.id,
-      name: updatedCollege.name,
-      department_name: updatedCollege.department_name,
-      address: updatedCollege.address,
-      city: updatedCollege.city,
-      state: updatedCollege.state,
-      pincode: updatedCollege.pincode,
-      contact: updatedCollege.contact_number,
-      email: updatedCollege.email,
-      createdAt: updatedCollege.created_at,
-      updatedAt: updatedCollege.updated_at
-    };
-    
-    setColleges(prev => prev.map(college => 
-      college.id === transformedCollege.id ? transformedCollege : college
-    ));
-    
-    showNotification('College updated successfully!', 'success');
+  // Handle send notification
+  const handleSendNotification = (data) => {
+    loadNotificationsFromAPI();
+    showNotification('Notification sent successfully!', 'success');
   };
 
-  // Handle delete college
-  const handleDeleteCollege = (collegeId) => {
-    setColleges(prev => prev.filter(college => college.id !== collegeId));
-    setSelected(prev => prev.filter(id => id !== collegeId));
-    loadCollegesFromAPI();
-    showNotification('College deleted successfully!', 'success');
+  // Handle bulk send notification
+  const handleBulkSendNotification = (data) => {
+    loadNotificationsFromAPI();
+    showNotification('Bulk notifications sent successfully!', 'success');
+  };
+
+  // Handle edit notification
+  const handleEditNotification = async (updatedNotification) => {
+    await loadNotificationsFromAPI();
+    showNotification('Notification updated successfully!', 'success');
+  };
+
+  // Handle delete notification
+  const handleDeleteNotification = (notificationId) => {
+    setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
+    setSelected(prev => prev.filter(id => id !== notificationId));
+    loadNotificationsFromAPI();
+    showNotification('Notification deleted successfully!', 'success');
   };
 
   // Handle refresh
   const handleRefresh = () => {
-    loadCollegesFromAPI();
+    loadNotificationsFromAPI();
     showNotification('Data refreshed successfully', 'success');
   };
 
@@ -416,7 +402,7 @@ const CollegeManagement = () => {
     if (!canDelete) return;
     
     if (event.target.checked) {
-      setSelected(colleges.map(college => college.id));
+      setSelected(notifications.map(notif => notif.id));
     } else {
       setSelected([]);
     }
@@ -446,7 +432,7 @@ const CollegeManagement = () => {
     try {
       const token = localStorage.getItem('token');
       const deletePromises = selected.map(id => 
-        axios.delete(`${BASE_URL}/colleges/${id}`, {
+        axios.delete(`${BASE_URL}/admin/notifications/${id}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         })
       );
@@ -454,17 +440,17 @@ const CollegeManagement = () => {
       await Promise.all(deletePromises);
       setSelected([]);
       
-      if (colleges.length === selected.length && currentPage > 1) {
+      if (notifications.length === selected.length && currentPage > 1) {
         setCurrentPage(prev => prev - 1);
         setPage(prev => prev - 1);
       } else {
-        loadCollegesFromAPI();
+        loadNotificationsFromAPI();
       }
       
-      showNotification(`${selected.length} colleges deleted successfully`, 'success');
+      showNotification(`${selected.length} notifications deleted successfully`, 'success');
     } catch (error) {
-      console.error('Error bulk deleting colleges:', error);
-      showNotification('Failed to delete some colleges', 'error');
+      console.error('Error bulk deleting notifications:', error);
+      showNotification('Failed to delete some notifications', 'error');
     } finally {
       setLoading(false);
     }
@@ -495,21 +481,28 @@ const CollegeManagement = () => {
     });
   };
 
-  // Get avatar color based on name
-  const getAvatarColor = (name) => {
+  // Get avatar color based on title
+  const getAvatarColor = (title) => {
     const colors = [COLORS.accent, '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
-    const charCode = name?.charCodeAt(0) || 0;
+    const charCode = title?.charCodeAt(0) || 0;
     return colors[charCode % colors.length];
   };
 
-  // Get college initials
-  const getCollegeInitials = (name) => {
-    if (!name) return 'C';
-    const words = name.split(' ');
+  // Get notification initials
+  const getNotificationInitials = (title) => {
+    if (!title) return 'N';
+    const words = title.split(' ');
     if (words.length >= 2) {
       return `${words[0].charAt(0)}${words[1].charAt(0)}`.toUpperCase();
     }
-    return name.substring(0, 2).toUpperCase();
+    return title.substring(0, 2).toUpperCase();
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString();
   };
 
   // Show loading state while permissions are being fetched
@@ -521,6 +514,9 @@ const CollegeManagement = () => {
   if (!canView && !isSuperAdmin) {
     return <AccessDenied />;
   }
+
+  // Count unread notifications
+  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <Box>
@@ -536,10 +532,10 @@ const CollegeManagement = () => {
             mb: 0.5
           }}
         >
-          College Management
+          Notification Management
         </Typography>
         <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.secondary }}>
-          Manage and organize college information and details
+          Manage and send notifications to students across batches
         </Typography>
       </Box>
 
@@ -556,7 +552,7 @@ const CollegeManagement = () => {
           {/* Search */}
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flex: 1 }}>
             <TextField
-              placeholder="Search by college name, address, or contact..."
+              placeholder="Search by title, message, student or batch..."
               size="small"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -593,9 +589,8 @@ const CollegeManagement = () => {
             />
           </Stack>
 
-          {/* Action Buttons - Conditionally rendered based on permissions */}
+          {/* Action Buttons */}
           <Stack direction="row" spacing={1.5} alignItems="center">
-            {/* Bulk Delete Button - Only show if user has delete permission */}
             {canDelete && selected.length > 0 && (
               <Button
                 variant="outlined"
@@ -621,34 +616,129 @@ const CollegeManagement = () => {
               </Button>
             )}
             
-            {/* Add College Button - Only show if user has create permission */}
             {canCreate && (
-              <Button
-                variant="contained"
-                startIcon={<AddIcon sx={{ fontSize: '1rem' }} />}
-                onClick={() => setOpenAddModal(true)}
+              <>
+                <Button
+                  variant="outlined"
+                  startIcon={<GroupIcon sx={{ fontSize: '1rem' }} />}
+                  onClick={() => setOpenBulkSendModal(true)}
+                  disabled={loading}
+                  sx={{
+                    height: 36,
+                    borderRadius: 1.5,
+                    borderColor: COLORS.border,
+                    color: COLORS.text.secondary,
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    '&:hover': {
+                      borderColor: COLORS.accent,
+                      bgcolor: `${COLORS.accent}10`
+                    }
+                  }}
+                >
+                  Bulk Send
+                </Button>
+                
+                <Button
+                  variant="contained"
+                  startIcon={<SendIcon sx={{ fontSize: '1rem' }} />}
+                  onClick={() => setOpenSendModal(true)}
+                  disabled={loading}
+                  sx={{
+                    height: 36,
+                    borderRadius: 1.5,
+                    bgcolor: COLORS.primary,
+                    fontSize: '0.75rem',
+                    fontWeight: 500,
+                    textTransform: 'none',
+                    boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                    '&:hover': {
+                      bgcolor: COLORS.primaryDark,
+                    }
+                  }}
+                >
+                  Send Notification
+                </Button>
+              </>
+            )}
+            
+            <Tooltip title="Refresh">
+              <IconButton
+                onClick={handleRefresh}
                 disabled={loading}
                 sx={{
                   height: 36,
+                  width: 36,
                   borderRadius: 1.5,
-                  bgcolor: COLORS.primary,
-                  fontSize: '0.75rem',
-                  fontWeight: 500,
-                  textTransform: 'none',
-                  boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
+                  border: `1px solid ${COLORS.border}`,
+                  color: COLORS.text.secondary,
                   '&:hover': {
-                    bgcolor: COLORS.primaryDark,
+                    borderColor: COLORS.accent,
+                    bgcolor: `${COLORS.accent}10`
                   }
                 }}
               >
-                Add College
-              </Button>
-            )}
+                <RefreshIcon sx={{ fontSize: '1rem' }} />
+              </IconButton>
+            </Tooltip>
           </Stack>
         </Stack>
       </Paper>
 
-      {/* Colleges Table */}
+      {/* Tabs */}
+      <Paper sx={{ 
+        mb: 2.5, 
+        borderRadius: 2,
+        bgcolor: COLORS.background.white,
+        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.05)',
+        border: `1px solid ${COLORS.border}`,
+        overflow: 'hidden'
+      }}>
+        <Tabs
+          value={tabValue}
+          onChange={handleTabChange}
+          sx={{
+            minHeight: 40,
+            '& .MuiTab-root': {
+              minHeight: 40,
+              fontSize: '0.75rem',
+              fontWeight: 500,
+              textTransform: 'none',
+              color: COLORS.text.secondary,
+              '&.Mui-selected': {
+                color: COLORS.accent
+              }
+            },
+            '& .MuiTabs-indicator': {
+              backgroundColor: COLORS.accent,
+              height: 2
+            }
+          }}
+        >
+          <Tab 
+            label="All Notifications" 
+            icon={<NotificationsIcon sx={{ fontSize: '1rem' }} />} 
+            iconPosition="start"
+          />
+          <Tab 
+            label={
+              <Badge badgeContent={unreadCount} color="error" sx={{ '& .MuiBadge-badge': { fontSize: '0.65rem', height: 16, minWidth: 16 } }}>
+                Unread
+              </Badge>
+            } 
+            icon={<MarkunreadIcon sx={{ fontSize: '1rem' }} />} 
+            iconPosition="start"
+          />
+          <Tab 
+            label="Read" 
+            icon={<CheckCircleIcon sx={{ fontSize: '1rem' }} />} 
+            iconPosition="start"
+          />
+        </Tabs>
+      </Paper>
+
+      {/* Notifications Table */}
       <Paper sx={{ 
         width: '100%', 
         borderRadius: 2, 
@@ -667,14 +757,13 @@ const CollegeManagement = () => {
                   py: 1.5
                 }
               }}>
-                {/* Checkbox Column - Only show if user has delete permission */}
                 {canDelete && (
                   <TableCell padding="checkbox" sx={{ width: 40 }}>
                     <Checkbox
-                      indeterminate={selected.length > 0 && selected.length < colleges.length}
-                      checked={colleges.length > 0 && selected.length === colleges.length}
+                      indeterminate={selected.length > 0 && selected.length < notifications.length}
+                      checked={notifications.length > 0 && selected.length === notifications.length}
                       onChange={handleSelectAll}
-                      disabled={loading || colleges.length === 0}
+                      disabled={loading || notifications.length === 0}
                       sx={{
                         color: COLORS.text.light,
                         '&.Mui-checked': {
@@ -696,7 +785,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  College Name
+                  Notification
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -704,7 +793,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  Departments
+                  Student / Batch
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -712,7 +801,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  Address
+                  Status
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -720,7 +809,7 @@ const CollegeManagement = () => {
                   letterSpacing: '0.5px',
                   color: COLORS.text.light
                 }}>
-                  Contact
+                  Sent At
                 </TableCell>
                 <TableCell sx={{ 
                   fontWeight: 600, 
@@ -739,37 +828,49 @@ const CollegeManagement = () => {
                   <TableCell colSpan={canDelete ? 6 : 5} align="center" sx={{ py: 6 }}>
                     <CircularProgress size={32} sx={{ color: COLORS.accent }} />
                     <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.secondary, mt: 1 }}>
-                      Loading colleges...
+                      Loading notifications...
                     </Typography>
                   </TableCell>
                 </TableRow>
-              ) : colleges.length === 0 ? (
+              ) : notifications.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={canDelete ? 6 : 5} align="center" sx={{ py: 6 }}>
-                    <Box sx={{ textAlign: 'center' }}>
-                      <BusinessIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
+                  <TableCell 
+                    colSpan={canDelete ? 6 : 5} 
+                    align="center" 
+                    sx={{ 
+                      py: 6,
+                      textAlign: 'center'
+                    }}
+                  >
+                    <Box sx={{ 
+                      display: 'flex', 
+                      flexDirection: 'column', 
+                      alignItems: 'center', 
+                      justifyContent: 'center',
+                      width: '100%'
+                    }}>
+                      <NotificationsIcon sx={{ fontSize: 48, color: COLORS.text.tertiary, mb: 1 }} />
                       <Typography variant="body1" sx={{ fontSize: '0.875rem', color: COLORS.text.secondary, fontWeight: 500 }}>
-                        {searchTerm ? 'No colleges found' : 'No colleges available'}
+                        {searchTerm ? 'No notifications found' : 'No notifications available'}
                       </Typography>
                       <Typography variant="body2" sx={{ fontSize: '0.75rem', color: COLORS.text.tertiary, mt: 0.5 }}>
-                        {searchTerm ? 'Try adjusting your search terms' : 'Add your first college to get started'}
+                        {searchTerm ? 'Try adjusting your search terms' : 'Send a notification to get started'}
                       </Typography>
                     </Box>
                   </TableCell>
                 </TableRow>
               ) : (
-                colleges.map((college) => {
-                  const isSelected = selected.includes(college.id);
-                  const avatarColor = getAvatarColor(college.name);
-                  const departments = college.department_name || [];
+                notifications.map((notification) => {
+                  const isSelected = selected.includes(notification.id);
+                  const avatarColor = getAvatarColor(notification.title);
 
                   return (
                     <TableRow
-                      key={college.id}
+                      key={notification.id}
                       hover
                       selected={isSelected}
                       sx={{ 
-                        bgcolor: COLORS.background.white,
+                        bgcolor: notification.isRead ? COLORS.background.white : `${COLORS.accent}05`,
                         '&:hover': {
                           bgcolor: COLORS.background.hover
                         },
@@ -786,12 +887,11 @@ const CollegeManagement = () => {
                         }
                       }}
                     >
-                      {/* Checkbox Column - Only show if user has delete permission */}
                       {canDelete && (
                         <TableCell padding="checkbox" sx={{ width: 40 }}>
                           <Checkbox
                             checked={isSelected}
-                            onChange={() => handleSelect(college.id)}
+                            onChange={() => handleSelect(notification.id)}
                             sx={{
                               color: COLORS.accent,
                               '&.Mui-checked': {
@@ -804,8 +904,10 @@ const CollegeManagement = () => {
                           />
                         </TableCell>
                       )}
+                      
+                      {/* Notification Column */}
                       <TableCell>
-                        <Stack direction="row" spacing={1.5} alignItems="center">
+                        <Stack direction="row" spacing={1.5} alignItems="flex-start">
                           <Avatar 
                             sx={{ 
                               width: 32, 
@@ -815,86 +917,96 @@ const CollegeManagement = () => {
                               fontWeight: 600
                             }}
                           >
-                            {getCollegeInitials(college.name)}
+                            {getNotificationInitials(notification.title)}
                           </Avatar>
-                          <Box>
-                            <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: COLORS.text.primary }}>
-                              {college.name}
-                            </Typography>
-                            <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                              {college.city}, {college.state} - {college.pincode}
+                          <Box sx={{ flex: 1 }}>
+                            <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 0.5 }}>
+                              <Typography sx={{ 
+                                fontSize: '0.75rem', 
+                                fontWeight: 600, 
+                                color: COLORS.text.primary
+                              }}>
+                                {notification.title}
+                              </Typography>
+                              {!notification.isRead && (
+                                <Chip
+                                  label="New"
+                                  size="small"
+                                  sx={{
+                                    height: 16,
+                                    fontSize: '0.6rem',
+                                    fontWeight: 600,
+                                    bgcolor: COLORS.accent,
+                                    color: '#FFFFFF'
+                                  }}
+                                />
+                              )}
+                            </Stack>
+                            <Typography sx={{ 
+                              fontSize: '0.7rem', 
+                              color: COLORS.text.secondary,
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden'
+                            }}>
+                              {notification.message}
                             </Typography>
                           </Box>
                         </Stack>
                       </TableCell>
-                      
-                      {/* Departments Column */}
-                      <TableCell>
-                        {departments.length === 0 ? (
-                          <Typography sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary, fontStyle: 'italic' }}>
-                            No departments
-                          </Typography>
-                        ) : (
-                          <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', gap: 0.5 }}>
-                            {departments.map((dept, index) => (
-                              <Chip
-                                key={index}
-                                label={dept}
-                                size="small"
-                                icon={<SchoolIcon sx={{ fontSize: '0.7rem !important' }} />}
-                                sx={{
-                                  fontSize: '0.65rem',
-                                  height: 22,
-                                  bgcolor: `${COLORS.accent}20`,
-                                  color: COLORS.accent,
-                                  '& .MuiChip-label': {
-                                    px: 1,
-                                    fontSize: '0.65rem'
-                                  },
-                                  '& .MuiChip-icon': {
-                                    fontSize: '0.7rem',
-                                    marginLeft: '6px',
-                                    color: COLORS.accent
-                                  }
-                                }}
-                              />
-                            ))}
-                          </Stack>
-                        )}
-                      </TableCell>
-                      
-                      <TableCell>
-                        <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                          {college.address}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
-                          {college.city}, {college.state} {college.pincode}
-                        </Typography>
-                      </TableCell>
+
+                      {/* Student / Batch Column */}
                       <TableCell>
                         <Stack spacing={0.5}>
-                          <Stack direction="row" spacing={0.5} alignItems="center">
-                            <PhoneIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
-                            <Typography sx={{ fontSize: '0.75rem', color: COLORS.text.primary }}>
-                              {college.contact}
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <ArticleIcon sx={{ fontSize: 14, color: COLORS.text.tertiary }} />
+                            <Typography sx={{ fontSize: '0.7rem', color: COLORS.text.primary }}>
+                              Batch: {notification.batchName}
                             </Typography>
                           </Stack>
-                          {college.email && (
-                            <Stack direction="row" spacing={0.5} alignItems="center">
-                              <EmailIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
-                              <Typography sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                                {college.email}
-                              </Typography>
-                            </Stack>
-                          )}
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <PersonIcon sx={{ fontSize: 12, color: COLORS.text.tertiary }} />
+                            <Typography sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary }}>
+                              Student: {notification.studentName}
+                            </Typography>
+                          </Stack>
                         </Stack>
                       </TableCell>
+
+                      {/* Status Column */}
+                      <TableCell>
+                        <Chip
+                          icon={notification.isRead ? <CheckCircleIcon sx={{ fontSize: '0.75rem' }} /> : <MarkunreadIcon sx={{ fontSize: '0.75rem' }} />}
+                          label={notification.isRead ? 'Read' : 'Unread'}
+                          size="small"
+                          sx={{
+                            height: 24,
+                            fontSize: '0.65rem',
+                            fontWeight: 500,
+                            bgcolor: notification.isRead ? `${COLORS.success}10` : `${COLORS.accent}10`,
+                            color: notification.isRead ? COLORS.success : COLORS.accent,
+                            '& .MuiChip-icon': {
+                              fontSize: '0.75rem'
+                            }
+                          }}
+                        />
+                      </TableCell>
+
+                      {/* Sent At Column */}
+                      <TableCell>
+                        <Typography sx={{ fontSize: '0.7rem', color: COLORS.text.secondary }}>
+                          {formatDate(notification.createdAt)}
+                        </Typography>
+                      </TableCell>
+
+                      {/* Actions Column */}
                       <TableCell align="center" sx={{ width: 60 }}>
                         <ActionMenu 
-                          college={college}
-                          onView={(c) => { setSelectedCollege(c); setOpenViewModal(true); }}
-                          onEdit={(c) => { setSelectedCollege(c); setOpenEditModal(true); }}
-                          onDelete={(c) => { setSelectedCollege(c); setOpenDeleteDialog(true); }}
+                          notification={notification}
+                          onView={(n) => { setSelectedNotification(n); setOpenViewModal(true); }}
+                          onEdit={(n) => { setSelectedNotification(n); setOpenEditModal(true); }}
+                          onDelete={(n) => { setSelectedNotification(n); setOpenDeleteDialog(true); }}
                           canView={canView}
                           canUpdate={canUpdate}
                           canDelete={canDelete}
@@ -933,36 +1045,44 @@ const CollegeManagement = () => {
         />
       </Paper>
 
-      {/* Modal Components - Only render if user has appropriate permissions */}
+      {/* Modal Components */}
       {canCreate && (
-        <AddCollege 
-          open={openAddModal}
-          onClose={() => setOpenAddModal(false)}
-          onAdd={handleAddCollege}
-        />
+        <>
+          <SendNotification 
+            open={openSendModal}
+            onClose={() => setOpenSendModal(false)}
+            onSend={handleSendNotification}
+          />
+          
+          <BulkSendNotification 
+            open={openBulkSendModal}
+            onClose={() => setOpenBulkSendModal(false)}
+            onSend={handleBulkSendNotification}
+          />
+        </>
       )}
 
-      {selectedCollege && (
+      {selectedNotification && (
         <>
           {canUpdate && (
-            <EditCollege 
+            <EditNotification 
               open={openEditModal}
               onClose={() => {
                 setOpenEditModal(false);
-                setSelectedCollege(null);
+                setSelectedNotification(null);
               }}
-              college={selectedCollege}
-              onUpdate={handleEditCollege}
+              notification={selectedNotification}
+              onUpdate={handleEditNotification}
             />
           )}
 
-          <ViewCollege 
+          <ViewNotification 
             open={openViewModal}
             onClose={() => {
               setOpenViewModal(false);
-              setSelectedCollege(null);
+              setSelectedNotification(null);
             }}
-            college={selectedCollege}
+            notification={selectedNotification}
             onEdit={() => {
               setOpenViewModal(false);
               setOpenEditModal(true);
@@ -970,14 +1090,14 @@ const CollegeManagement = () => {
           />
 
           {canDelete && (
-            <DeleteCollege 
+            <DeleteNotification 
               open={openDeleteDialog}
               onClose={() => {
                 setOpenDeleteDialog(false);
-                setSelectedCollege(null);
+                setSelectedNotification(null);
               }}
-              college={selectedCollege}
-              onDelete={handleDeleteCollege}
+              notification={selectedNotification}
+              onDelete={handleDeleteNotification}
             />
           )}
         </>
@@ -1011,4 +1131,4 @@ const CollegeManagement = () => {
   );
 };
 
-export default CollegeManagement;
+export default NotificationManagement;

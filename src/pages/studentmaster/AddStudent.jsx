@@ -762,18 +762,16 @@ const validatePhone = (phone) => {
 
 const AddStudent = ({ open, onClose, onAdd }) => {
   const [colleges, setColleges] = useState([]);
-  const [departments, setDepartments] = useState([]);
-  const [filteredDepartments, setFilteredDepartments] = useState([]);
   const [selectedCollege, setSelectedCollege] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [selectedCompany, setSelectedCompany] = useState(null);
   const [loadingColleges, setLoadingColleges] = useState(false);
-  const [loadingDepartments, setLoadingDepartments] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     mobile: '',
     college_id: '',
     department_id: '',
+    department_name: '', // Add department_name to formData
     password: '',
     company_name: ''
   });
@@ -785,7 +783,6 @@ const AddStudent = ({ open, onClose, onAdd }) => {
   useEffect(() => {
     if (open) {
       loadCollegesFromAPI();
-      loadDepartmentsFromAPI();
     }
   }, [open]);
 
@@ -800,13 +797,15 @@ const AddStudent = ({ open, onClose, onAdd }) => {
       });
 
       if (response.data && response.data.data) {
+        // Transform colleges to include departments from the API response
         const transformedColleges = response.data.data.map(college => ({
           id: college.id,
           name: college.name,
           city: college.city,
           state: college.state,
           pincode: college.pincode,
-          address: college.address
+          address: college.address,
+          departments: college.department_name || [] // Use department_name array from API
         }));
         setColleges(transformedColleges);
       } else {
@@ -820,48 +819,15 @@ const AddStudent = ({ open, onClose, onAdd }) => {
     }
   };
 
-  const loadDepartmentsFromAPI = async () => {
-    setLoadingDepartments(true);
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.get(`${BASE_URL}/departments`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.data && response.data.data) {
-        const transformedDepartments = response.data.data.map(dept => ({
-          id: dept.id,
-          department_name: dept.department_name,
-          college_id: dept.college_id,
-          coordinator_name: dept.coordinator_name,
-          coordinator_contact: dept.coordinator_contact,
-          coordinator_email: dept.coordinator_email
-        }));
-        setDepartments(transformedDepartments);
-      } else {
-        setDepartments([]);
-      }
-    } catch (error) {
-      console.error('Error loading departments:', error);
-      setError('Failed to load departments. Please refresh and try again.');
-    } finally {
-      setLoadingDepartments(false);
-    }
-  };
-
-  // Filter departments based on selected college
+  // Reset department selection when college changes
   useEffect(() => {
-    if (selectedCollege) {
-      const filtered = departments.filter(dept => dept.college_id === selectedCollege.id);
-      setFilteredDepartments(filtered);
-    } else {
-      setFilteredDepartments([]);
-    }
     setSelectedDepartment(null);
-    setFormData(prev => ({ ...prev, department_id: '' }));
-  }, [selectedCollege, departments]);
+    setFormData(prev => ({ 
+      ...prev, 
+      department_id: '',
+      department_name: ''
+    }));
+  }, [selectedCollege]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -881,7 +847,9 @@ const AddStudent = ({ open, onClose, onAdd }) => {
     setFieldErrors(prev => ({ ...prev, college_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
-      college_id: newValue ? newValue.id : ''
+      college_id: newValue ? newValue.id : '',
+      department_id: '',
+      department_name: ''
     }));
   };
 
@@ -890,7 +858,8 @@ const AddStudent = ({ open, onClose, onAdd }) => {
     setFieldErrors(prev => ({ ...prev, department_id: '' }));
     setFormData(prev => ({ 
       ...prev, 
-      department_id: newValue ? newValue.id : ''
+      department_id: newValue ? newValue.id || newValue : '', // Handle if department has id or just string
+      department_name: newValue || ''
     }));
   };
 
@@ -925,7 +894,7 @@ const AddStudent = ({ open, onClose, onAdd }) => {
       isValid = false;
     }
 
-    if (!formData.department_id) {
+    if (!formData.department_name) {
       errors.department_id = 'Department name is required';
       isValid = false;
     }
@@ -966,6 +935,7 @@ const AddStudent = ({ open, onClose, onAdd }) => {
         mobile: formData.mobile,
         college_id: formData.college_id,
         department_id: formData.department_id,
+        department_name: formData.department_name, // Send department name if needed
         password: formData.password,
         company_name: formData.company_name
       };
@@ -1019,6 +989,7 @@ const AddStudent = ({ open, onClose, onAdd }) => {
       mobile: '',
       college_id: '',
       department_id: '',
+      department_name: '',
       password: '',
       company_name: ''
     });
@@ -1032,6 +1003,15 @@ const AddStudent = ({ open, onClose, onAdd }) => {
   const handleClose = () => {
     resetForm();
     onClose();
+  };
+
+  // Get departments for selected college
+  const getDepartmentsForCollege = () => {
+    if (!selectedCollege) return [];
+    return selectedCollege.departments.map(dept => ({
+      id: dept, // Use department name as ID if no separate ID
+      name: dept
+    }));
   };
 
   // TextField styling
@@ -1215,6 +1195,11 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                           <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
                             {option.city}, {option.state} - {option.pincode}
                           </Typography>
+                          {option.departments && option.departments.length > 0 && (
+                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary, display: 'block' }}>
+                              {option.departments.length} department(s) available
+                            </Typography>
+                          )}
                         </Box>
                       </li>
                     )}
@@ -1239,12 +1224,11 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                   </Typography>
                   <Autocomplete
                     fullWidth
-                    options={filteredDepartments}
-                    loading={loadingDepartments}
+                    options={getDepartmentsForCollege()}
                     value={selectedDepartment}
                     onChange={handleDepartmentChange}
-                    getOptionLabel={(option) => option?.department_name || ''}
-                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
+                    getOptionLabel={(option) => option?.name || option || ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id || option === value}
                     disabled={loading || !selectedCollege}
                     renderInput={(params) => {
                       const { InputLabelProps, InputProps, ...rest } = params;
@@ -1252,32 +1236,21 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                         <TextField
                           {...rest}
                           size="small"
-                          placeholder={!selectedCollege ? 'Please select college first' : (loadingDepartments ? 'Loading departments...' : 'Search and select department')}
+                          placeholder={!selectedCollege ? 'Please select college first' : 'Search and select department'}
                           error={!!fieldErrors.department_id}
                           helperText={fieldErrors.department_id}
                           sx={textFieldSx}
                           InputProps={{
                             ...InputProps,
-                            endAdornment: (
-                              <>
-                                {loadingDepartments && <CircularProgress color="inherit" size={16} />}
-                                {InputProps?.endAdornment}
-                              </>
-                            ),
                           }}
                         />
                       );
                     }}
                     renderOption={(props, option) => (
                       <li {...props}>
-                        <Box>
-                          <Typography variant="body2" fontWeight={500} sx={{ fontSize: '0.75rem' }}>
-                            {option.department_name}
-                          </Typography>
-                          <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
-                            Coordinator: {option.coordinator_name} | Contact: {option.coordinator_contact}
-                          </Typography>
-                        </Box>
+                        <Typography variant="body2" sx={{ fontSize: '0.75rem' }}>
+                          {typeof option === 'object' ? option.name : option}
+                        </Typography>
                       </li>
                     )}
                     ListboxProps={{
@@ -1289,7 +1262,7 @@ const AddStudent = ({ open, onClose, onAdd }) => {
                         }
                       }
                     }}
-                    noOptionsText="No departments found for this college"
+                    noOptionsText={!selectedCollege ? "Please select a college first" : "No departments found for this college"}
                   />
                 </Box>
               </Grid>

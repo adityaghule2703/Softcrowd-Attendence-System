@@ -7,11 +7,12 @@ import {
 import { canViewPage, MODULES, PAGES } from "../utils/modulePermissions";
 import BASE_URL from "../config/Config";
 
-const Sidebar = ({ isMobileOpen, onClose }) => {
+const Sidebar = ({ isMobileOpen, onClose, onMenuItemsLoad }) => {
   const location = useLocation();
   const [userPermissions, setUserPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState("");
+  const [accessibleMenuItems, setAccessibleMenuItems] = useState([]);
 
   useEffect(() => {
     const fetchUserPermissions = async () => {
@@ -36,36 +37,44 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
     fetchUserPermissions();
   }, []);
 
-  // Close mobile sidebar on route change
-  useEffect(() => {
-    if (onClose && isMobileOpen) {
-      onClose();
-    }
-  }, [location.pathname]);
-
   const hasViewPermission = (moduleKey, pageName) => {
     if (userRole === "Super Admin" || userRole === "Admin") return true;
     return canViewPage(userPermissions, moduleKey, pageName);
   };
 
   const mainMenu = [
-    { path: "/", name: "Dashboard", icon: LayoutDashboard, moduleKey: MODULES.DASHBOARD, pageName: PAGES.DASHBOARD },
-    { path: "/domain-management", name: "Domain Management", icon: Users, moduleKey: MODULES.DOMAIN_MANAGEMENT, pageName: PAGES.DOMAIN_MANAGEMENT },
-    { path: "/holiday-management", name: "Holiday Management", icon: Users, moduleKey: MODULES.HOLIDAY_MANAGEMENT, pageName: PAGES.HOLIDAY_MANAGEMENT },
-    { path: "/college-management", name: "College Management", icon: GraduationCap, moduleKey: MODULES.COLLEGE_MANAGEMENT, pageName: PAGES.COLLEGE_MANAGEMENT },
-    { path: "/dept-management", name: "Department Management", icon: Building2, moduleKey: MODULES.DEPARTMENT_MANAGEMENT, pageName: PAGES.DEPARTMENT_MANAGEMENT },
-    { path: "/student-management", name: "Student Management", icon: Users, moduleKey: MODULES.STUDENT_MANAGEMENT, pageName: PAGES.STUDENT_MANAGEMENT },
-    { path: "/batch-management", name: "Batch Management", icon: Layers3, moduleKey: MODULES.BATCH_MANAGEMENT, pageName: PAGES.BATCH_MANAGEMENT },
-    // { path: "/trainers", name: "Trainers", icon: UserCog, moduleKey: MODULES.TRAINERS, pageName: PAGES.TRAINERS },
-    { path: "/attendance", name: "Attendance", icon: CalendarCheck, moduleKey: MODULES.ATTENDANCE, pageName: PAGES.ATTENDANCE },
-    { path: "/users", name: "Users", icon: UserRound, moduleKey: MODULES.USERS, pageName: PAGES.USERS },
-    { path: "/roles", name: "Roles", icon: Shield, moduleKey: MODULES.ROLES, pageName: PAGES.ROLES },
-    { path: "/reports", name: "Reports", icon: FileText, moduleKey: MODULES.REPORTS, pageName: PAGES.REPORTS },
+    { path: "/", name: "Dashboard", icon: LayoutDashboard, moduleKey: MODULES.DASHBOARD, pageName: PAGES.DASHBOARD, description: "View analytics and statistics" },
+    { path: "/domain-management", name: "Domain Management", icon: Users, moduleKey: MODULES.DOMAIN_MANAGEMENT, pageName: PAGES.DOMAIN_MANAGEMENT, description: "Manage domains" },
+     { path: "/batch-management", name: "Batch Management", icon: Layers3, moduleKey: MODULES.BATCH_MANAGEMENT, pageName: PAGES.BATCH_MANAGEMENT, description: "Manage batches" },
+     { path: "/dept-management", name: "Department Management", icon: Building2, moduleKey: MODULES.DEPARTMENT_MANAGEMENT, pageName: PAGES.DEPARTMENT_MANAGEMENT, description: "Manage departments" },
+    { path: "/college-management", name: "College Management", icon: GraduationCap, moduleKey: MODULES.COLLEGE_MANAGEMENT, pageName: PAGES.COLLEGE_MANAGEMENT, description: "Manage colleges" },
+    { path: "/student-management", name: "Student Management", icon: Users, moduleKey: MODULES.STUDENT_MANAGEMENT, pageName: PAGES.STUDENT_MANAGEMENT, description: "Manage students" },
+     { path: "/holiday-management", name: "Holiday Management", icon: Users, moduleKey: MODULES.HOLIDAY_MANAGEMENT, pageName: PAGES.HOLIDAY_MANAGEMENT, description: "Manage holidays" },
+    { path: "/attendance", name: "Attendance", icon: CalendarCheck, moduleKey: MODULES.ATTENDANCE, pageName: PAGES.ATTENDANCE, description: "Track attendance" },
+    { path: "/users", name: "Users", icon: UserRound, moduleKey: MODULES.USERS, pageName: PAGES.USERS, description: "Manage users" },
+    { path: "/roles", name: "Roles", icon: Shield, moduleKey: MODULES.ROLES, pageName: PAGES.ROLES, description: "Manage roles" },
+    { path: "/reports", name: "Reports", icon: FileText, moduleKey: MODULES.REPORTS, pageName: PAGES.REPORTS, description: "View reports" },
   ];
 
-  const accessibleMenuItems = mainMenu.filter(item =>
-    hasViewPermission(item.moduleKey, item.pageName)
-  );
+  // Filter menu items based on permissions
+  useEffect(() => {
+    const filtered = mainMenu.filter(item =>
+      hasViewPermission(item.moduleKey, item.pageName)
+    );
+    setAccessibleMenuItems(filtered);
+    
+    // Pass the filtered menu items to parent component (Layout)
+    if (onMenuItemsLoad) {
+      onMenuItemsLoad(filtered);
+    }
+  }, [userPermissions, userRole]);
+
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    if (onClose && isMobileOpen) {
+      onClose();
+    }
+  }, [location.pathname]);
 
   const menuItemClass = ({ isActive }) =>
     `flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-300 group relative overflow-hidden ${
@@ -81,7 +90,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
     <aside className="h-full flex flex-col overflow-y-auto scrollbar-hide" style={{ background: '#0F172A' }}>
       {/* Mobile Header */}
       <div className="lg:hidden flex items-center justify-between p-4 border-b" style={{ borderColor: '#1E293B' }}>
-        <img src="src/assets/images/softcrowd-logo.png" className="h-8 w-auto" alt="SoftCrowd Logo" />
+        <img src="./softcrowd-logo.png" className="h-8 w-auto" alt="SoftCrowd Logo" />
         <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/10 transition-colors">
           <X className="w-5 h-5 text-gray-400" />
         </button>
@@ -134,7 +143,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
             </div>
           )}
 
-          {hasViewPermission(MODULES.DASHBOARD, PAGES.DASHBOARD) && (
+          {/* {hasViewPermission(MODULES.DASHBOARD, PAGES.DASHBOARD) && (
             <div className="mx-3 sm:mx-5 my-6 p-4 rounded-xl" style={{ background: 'rgba(0, 174, 237, 0.1)', border: '1px solid rgba(0, 174, 237, 0.2)' }}>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold" style={{ color: '#00AEED' }}>AI Insights</span>
@@ -148,7 +157,7 @@ const Sidebar = ({ isMobileOpen, onClose }) => {
                 <span className="text-xs font-bold text-white">68%</span>
               </div>
             </div>
-          )}
+          )} */}
         </>
       )}
 
