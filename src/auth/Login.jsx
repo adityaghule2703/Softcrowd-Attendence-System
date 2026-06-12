@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Lock, Sparkles, Eye, EyeOff, LogIn, Phone } from "lucide-react";
+import { Lock, Sparkles, Eye, EyeOff, LogIn, Phone, Download } from "lucide-react";
 import BASE_URL from "../config/Config";
-
+import { QRCodeCanvas } from 'qrcode.react';
 
 const Login = () => {
   const navigate = useNavigate();
@@ -13,6 +13,11 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState("");
   const [focusedField, setFocusedField] = useState(null);
+  const [showQRCode, setShowQRCode] = useState(false);
+
+  // const DRIVE_URL = "https://drive.google.com/drive/folders/1oSfUHhZCBxOil6FTftuaC56Kw2exM2_m";
+  // const DRIVE_URL = "https://drive.google.com/drive/folders/1D1GGt29NJl3XNSKMlHLaVW3qDXqRKOZi";
+  const DRIVE_URL = "https://drive.google.com/drive/folders/13rS8b7wCtRnyJm0zGfBHzhGoQJLa6u9B"
 
   useEffect(() => {
     const token = localStorage.getItem("token");
@@ -90,6 +95,10 @@ const Login = () => {
     }
   };
 
+  const handleDownloadAPK = () => {
+    setShowQRCode(true);
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-[#0A0F1E]">
       
@@ -148,22 +157,6 @@ const Login = () => {
             <p className="text-xl text-gray-400 max-w-xl leading-relaxed mb-8">
               Your journey to seamless enterprise management starts here
             </p>
-
-            {/* Stats */}
-            <div className="flex justify-start gap-8 mt-8">
-              <div className="text-center">
-                <p className="text-2xl font-bold text-white">10K+</p>
-                <p className="text-xs text-gray-500">Active Users</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-white">500+</p>
-                <p className="text-xs text-gray-500">Enterprises</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-bold text-white">99.9%</p>
-                <p className="text-xs text-gray-500">Uptime</p>
-              </div>
-            </div>
           </div>
 
           {/* Right Side - Login Card (Desktop) */}
@@ -261,6 +254,21 @@ const Login = () => {
                     </span>
                   </button>
                 </form>
+
+                {/* Download APK Button */}
+                <div className="mt-4">
+                  <button
+                    onClick={handleDownloadAPK}
+                    className="w-full py-2.5 rounded-xl font-medium transition-all duration-300 flex items-center justify-center gap-2 relative overflow-hidden group"
+                    style={{ 
+                      background: 'rgba(0, 174, 237, 0.1)',
+                      border: '1px solid rgba(0, 174, 237, 0.3)'
+                    }}
+                  >
+                    <Download className="w-4 h-4" style={{ color: '#00AEED' }} />
+                    <span style={{ color: '#00AEED' }}>Download APK</span>
+                  </button>
+                </div>
 
                 <div className="mt-6 pt-4 border-t border-gray-800">
                   <p className="text-center text-xs text-gray-500">
@@ -374,9 +382,21 @@ const Login = () => {
                       )}
                     </span>
                   </button>
+
+                  {/* Download APK Button - Mobile */}
+                  <button
+                    onClick={handleDownloadAPK}
+                    className="w-full py-2 rounded-lg font-medium transition-all duration-300 flex items-center justify-center gap-2 mt-2"
+                    style={{ 
+                      background: 'rgba(0, 174, 237, 0.1)',
+                      border: '1px solid rgba(0, 174, 237, 0.3)'
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" style={{ color: '#00AEED' }} />
+                    <span className="text-sm" style={{ color: '#00AEED' }}>Download APK</span>
+                  </button>
                 </form>
 
-                {/* Demo Credentials - Mobile */}
                 <div className="mt-4 pt-3 border-t border-gray-800">
                   <p className="text-center text-[10px] text-gray-500 mt-1">
                     Design and Developed by Softcrowd Technologies
@@ -402,6 +422,58 @@ const Login = () => {
               </svg>
             )}
             <span className="break-words">{error || success}</span>
+          </div>
+        </div>
+      )}
+
+      {/* QR Code Modal */}
+      {showQRCode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-md" style={{ background: 'rgba(0, 0, 0, 0.3)' }}>
+          <div 
+            className="bg-white rounded-2xl shadow-2xl p-8 max-w-2xl w-full mx-4 transform transition-all"
+            style={{ animation: 'scaleIn 0.2s ease-out' }}
+          >
+            <div className="flex justify-end items-center mb-4">
+              <button
+                onClick={() => setShowQRCode(false)}
+                className="p-2 rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <svg className="w-6 h-6" style={{ color: '#64748B' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <div className="flex flex-col items-center">
+              <div className="p-8 bg-white rounded-2xl shadow-xl mb-6" style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }}>
+                <QRCodeCanvas 
+                  value={DRIVE_URL}
+                  size={400}
+                  level="H"
+                  includeMargin={true}
+                  bgColor="#FFFFFF"
+                  fgColor="#00AEED"
+                />
+              </div>
+              
+              <a 
+                href={DRIVE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium transition-all hover:scale-105"
+                style={{ color: '#00AEED' }}
+              >
+                {DRIVE_URL}
+              </a>
+            </div>
+            
+            <button
+              onClick={() => setShowQRCode(false)}
+              className="w-full mt-6 px-4 py-2.5 rounded-lg font-medium transition-all hover:scale-105"
+              style={{ background: 'linear-gradient(135deg, #00AEED, #00D4FF)', color: 'white' }}
+            >
+              Close
+            </button>
           </div>
         </div>
       )}
@@ -449,6 +521,16 @@ const Login = () => {
         }
         .animate-slide-in-right {
           animation: slide-in-right 0.3s ease-out;
+        }
+        @keyframes scaleIn {
+          from {
+            opacity: 0;
+            transform: scale(0.95);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1);
+          }
         }
         .animation-delay-1000 {
           animation-delay: 1s;

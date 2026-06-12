@@ -15,7 +15,7 @@ const DoughnutChart = () => {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
         
-        const response = await axios.get('http://192.168.1.7:8000/api/domains', { headers });
+        const response = await axios.get('https://exilancesoftware.in/softcrowd-itr-attendance-management/public/api/domains', { headers });
         setDomains(response.data.data);
       } catch (err) {
         console.error('Error fetching domains:', err);

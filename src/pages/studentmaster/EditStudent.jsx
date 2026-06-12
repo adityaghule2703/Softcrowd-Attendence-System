@@ -559,8 +559,8 @@ const COLORS = {
 
 const COMPANY_OPTIONS = [
   "Exilance Software",
-  "Softcrowd Technology",
-  "Codiant Solution"
+  "Softcrowd Technologies",
+  "Codiant Solutions"
 ];
 
 const validatePhone = (phone) => {
@@ -590,7 +590,7 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
 
   useEffect(() => {
     if (open) {
-      loadCollegesFromAPI();
+      loadCollegesAndDepartmentsFromAPI();
     } else {
       // Reset when dialog closes
       setIsDataLoaded(false);
@@ -600,23 +600,39 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
     }
   }, [open]);
 
-  const loadCollegesFromAPI = async () => {
+  const loadCollegesAndDepartmentsFromAPI = async () => {
     setLoadingColleges(true);
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${BASE_URL}/colleges`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
+      const [collegesResponse, departmentsResponse] = await Promise.all([
+        axios.get(`${BASE_URL}/colleges`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        }),
+        axios.get(`${BASE_URL}/departments`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        })
+      ]);
 
-      if (response.data && response.data.data) {
-        const transformedColleges = response.data.data.map(college => ({
+      // Create a map of department names to their IDs
+      const departmentMap = {};
+      if (departmentsResponse.data && departmentsResponse.data.data) {
+        departmentsResponse.data.data.forEach(dept => {
+          departmentMap[dept.department_name] = dept.id;
+        });
+      }
+
+      if (collegesResponse.data && collegesResponse.data.data) {
+        const transformedColleges = collegesResponse.data.data.map(college => ({
           id: college.id,
           name: college.name,
           city: college.city,
           state: college.state,
           pincode: college.pincode,
           address: college.address,
-          departments: college.department_name || []
+          departments: (college.department_name || []).map(deptName => ({
+            id: departmentMap[deptName] || null,
+            name: deptName
+          }))
         }));
         setColleges(transformedColleges);
         
@@ -626,8 +642,8 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
         }
       }
     } catch (error) {
-      console.error('Error loading colleges:', error);
-      setError('Failed to load colleges');
+      console.error('Error loading data:', error);
+      setError('Failed to load colleges and departments');
     } finally {
       setLoadingColleges(false);
     }
@@ -663,13 +679,20 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
       setSelectedCompany(companyName);
     }
     
-    // Set selected department after college is set
+    // Set selected department with proper ID lookup
     if (foundCollege && departmentName) {
       console.log('Looking for department:', departmentName, 'in college departments:', foundCollege.departments);
-      const foundDepartment = foundCollege.departments.find(dept => dept === departmentName);
+      const foundDepartment = foundCollege.departments.find(dept => dept.name === departmentName);
       console.log('Found department:', foundDepartment);
       if (foundDepartment) {
-        setSelectedDepartment(foundDepartment);
+        setSelectedDepartment(foundDepartment.name);
+        // Ensure the correct department ID is set
+        if (foundDepartment.id && formData.department_id !== foundDepartment.id) {
+          setFormData(prev => ({ 
+            ...prev, 
+            department_id: foundDepartment.id 
+          }));
+        }
       } else {
         console.warn('Department not found:', departmentName);
         setSelectedDepartment(null);
@@ -683,10 +706,17 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
   useEffect(() => {
     if (selectedCollege && formData.department_name && isDataLoaded) {
       // Check if the currently selected department exists in the new college
-      const departmentExists = selectedCollege.departments.find(dept => dept === formData.department_name);
+      const departmentExists = selectedCollege.departments.find(dept => dept.name === formData.department_name);
       if (departmentExists) {
         if (selectedDepartment !== formData.department_name) {
           setSelectedDepartment(formData.department_name);
+        }
+        // Update department ID if needed
+        if (departmentExists.id && formData.department_id !== departmentExists.id) {
+          setFormData(prev => ({ 
+            ...prev, 
+            department_id: departmentExists.id 
+          }));
         }
       } else {
         // Department not found in this college, clear it
@@ -700,7 +730,7 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
     } else if (selectedCollege && !formData.department_name && isDataLoaded) {
       setSelectedDepartment(null);
     }
-  }, [selectedCollege, formData.department_name, isDataLoaded, selectedDepartment]);
+  }, [selectedCollege, formData.department_name, isDataLoaded, selectedDepartment, formData.department_id]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -731,9 +761,9 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
     setSelectedDepartment(newValue);
     setFieldErrors(prev => ({ ...prev, department_id: '' }));
     
-    // Find department ID if needed (using index as temporary ID)
-    const deptIndex = selectedCollege?.departments.indexOf(newValue);
-    const deptId = deptIndex !== undefined && deptIndex !== -1 ? deptIndex + 1 : '';
+    // Find the department object to get its actual ID
+    const selectedDeptObject = selectedCollege?.departments.find(dept => dept.name === newValue);
+    const deptId = selectedDeptObject?.id || '';
     
     setFormData(prev => ({ 
       ...prev, 
@@ -870,7 +900,8 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
 
   const getDepartmentsForCollege = () => {
     if (!selectedCollege) return [];
-    return selectedCollege.departments;
+    // Return just the department names for display
+    return selectedCollege.departments.map(dept => dept.name);
   };
 
   const textFieldSx = {
@@ -999,11 +1030,9 @@ const EditStudent = ({ open, onClose, student, onUpdate }) => {
                           <Typography variant="caption" sx={{ fontSize: '0.7rem', color: COLORS.text.tertiary }}>
                             {option.city}, {option.state} - {option.pincode}
                           </Typography>
-                          {option.departments && option.departments.length > 0 && (
-                            <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary, display: 'block' }}>
-                              {option.departments.length} department(s) available
-                            </Typography>
-                          )}
+                          <Typography variant="caption" sx={{ fontSize: '0.65rem', color: COLORS.text.tertiary, display: 'block' }}>
+                            {option.departments.length} department(s) available
+                          </Typography>
                         </Box>
                       </li>
                     )}

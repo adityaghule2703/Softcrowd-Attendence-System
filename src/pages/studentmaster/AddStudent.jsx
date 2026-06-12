@@ -751,8 +751,8 @@ const COLORS = {
 // Company options (enum values) - Required dropdown options
 const COMPANY_OPTIONS = [
   "Exilance Software",
-  "Softcrowd Technology",
-  "Codiant Solution"
+  "Softcrowd Technologies",
+  "Codiant Solutions"
 ];
 
 const validatePhone = (phone) => {

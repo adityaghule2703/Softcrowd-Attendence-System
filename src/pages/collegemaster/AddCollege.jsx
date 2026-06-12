@@ -1122,7 +1122,7 @@ const AddCollege = ({ open, onClose, onAdd }) => {
     
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get('http://192.168.1.7:8000/api/departments', {
+      const response = await axios.get('https://exilancesoftware.in/softcrowd-itr-attendance-management/public/api/departments', {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
